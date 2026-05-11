@@ -8,11 +8,10 @@ class FieldCalculatorPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return const ModulePlaceholderPage(
       title: 'Field Calculator',
-      subtitle: 'Tactical Utilities & Conversions',
-      currentIndex: 7,
       icon: Icons.calculate,
       description: 'Field calculator tools are currently under construction.',
-      futureFeatures: '- Fine Dead Fuel Moisture (FDFM) calculations\n- Probability of Ignition (PIG) tables\n- Pump and hose friction loss estimates\n- Quick unit conversions (chains to miles, etc.)',
+      futureFeatures:
+          '- Fine Dead Fuel Moisture (FDFM) calculations\n- Probability of Ignition (PIG) tables\n- Pump and hose friction loss estimates\n- Quick unit conversions (chains to miles, etc.)',
     );
   }
 }

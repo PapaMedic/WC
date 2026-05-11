@@ -13,21 +13,20 @@ class WeatherPage extends StatelessWidget {
         if (!isOnline) {
           return const ModulePlaceholderPage(
             title: 'Weather',
-            subtitle: 'Spot Forecasts & Conditions',
-            currentIndex: 6,
             icon: Icons.wifi_off,
             description: 'Unable to obtain: Network failure',
-            futureFeatures: 'Connect to a network to access spot weather forecasts and historical observations.',
+            futureFeatures:
+                'Connect to a network to access spot weather forecasts and historical observations.',
           );
         }
 
         return const ModulePlaceholderPage(
           title: 'Weather',
-          subtitle: 'Spot Forecasts & Conditions',
-          currentIndex: 6,
           icon: Icons.cloud,
-          description: 'Weather module is currently under construction. No API or forecast logic yet.',
-          futureFeatures: '- Retrieve spot weather forecasts based on GPS\n- Track historical weather observations\n- Log manual belt weather kit readings\n- RH, Temp, Wind Speed/Direction, and fuel moisture calculators',
+          description:
+              'Weather module is currently under construction. No API or forecast logic yet.',
+          futureFeatures:
+              '- Retrieve spot weather forecasts based on GPS\n- Track historical weather observations\n- Log manual belt weather kit readings\n- RH, Temp, Wind Speed/Direction, and fuel moisture calculators',
         );
       },
     );

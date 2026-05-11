@@ -1,62 +1,49 @@
 import 'package:flutter/material.dart';
 import 'package:wildland_companion_v2/app/theme/app_colors.dart';
 import 'package:wildland_companion_v2/app/theme/app_spacing.dart';
-import 'package:wildland_companion_v2/core/widgets/app_shell.dart';
 import 'package:wildland_companion_v2/core/widgets/tactical_card.dart';
 import 'package:wildland_companion_v2/core/widgets/status_chip.dart';
 import 'package:wildland_companion_v2/core/widgets/dashboard_stat_card.dart';
 import 'package:wildland_companion_v2/core/widgets/quick_action_card.dart';
-
-import 'package:wildland_companion_v2/features/personnel/presentation/personnel_page.dart';
-import 'package:wildland_companion_v2/features/apparatus/presentation/apparatus_page.dart';
-import 'package:wildland_companion_v2/features/incidents/presentation/incidents_page.dart';
-import 'package:wildland_companion_v2/features/tickets/presentation/tickets_page.dart';
-import 'package:wildland_companion_v2/features/fire_map/presentation/fire_map_page.dart';
-import 'package:wildland_companion_v2/features/weather/presentation/weather_page.dart';
-import 'package:wildland_companion_v2/features/field_calculator/presentation/field_calculator_page.dart';
+import 'package:wildland_companion_v2/app/app_router.dart';
 
 class DashboardPage extends StatelessWidget {
   const DashboardPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return AppShell(
-      title: 'Dashboard',
-      subtitle: 'Overview & Quick Actions',
-      currentIndex: 0,
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          int statColumns = 2;
-          if (constraints.maxWidth >= 1100) {
-            statColumns = 4;
-          } else if (constraints.maxWidth < 350) {
-            statColumns = 1;
-          }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        int statColumns = 2;
+        if (constraints.maxWidth >= 1100) {
+          statColumns = 4;
+        } else if (constraints.maxWidth < 350) {
+          statColumns = 1;
+        }
 
-          int actionColumns = statColumns == 1 ? 2 : statColumns;
-          if (constraints.maxWidth >= 1100) {
-            actionColumns = 6;
-          } else if (constraints.maxWidth >= 700) {
-            actionColumns = 3;
-          }
+        int actionColumns = statColumns == 1 ? 2 : statColumns;
+        if (constraints.maxWidth >= 1100) {
+          actionColumns = 6;
+        } else if (constraints.maxWidth >= 700) {
+          actionColumns = 3;
+        }
 
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildHeroCard(context),
-                const SizedBox(height: AppSpacing.lg),
-                _buildStatsGrid(statColumns),
-                const SizedBox(height: AppSpacing.lg),
-                _buildQuickActions(context, actionColumns),
-                const SizedBox(height: AppSpacing.lg),
-                _buildReadinessPanel(),
-              ],
-            ),
-          );
-        },
-      ),
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildHeroCard(context),
+              const SizedBox(height: AppSpacing.lg),
+              _buildStatsGrid(statColumns),
+              const SizedBox(height: AppSpacing.lg),
+              _buildQuickActions(context, actionColumns),
+              const SizedBox(height: AppSpacing.lg),
+              _buildReadinessPanel(),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -67,35 +54,56 @@ class DashboardPage extends StatelessWidget {
         children: [
           Row(
             children: const [
-              StatusChip(label: 'Offline Ready', color: AppColors.secondaryAccent, icon: Icons.cloud_done),
+              StatusChip(
+                label: 'Offline Ready',
+                color: AppColors.secondaryAccent,
+                icon: Icons.cloud_done,
+              ),
               SizedBox(width: AppSpacing.sm),
-              StatusChip(label: 'Local Only', color: AppColors.textMuted, icon: Icons.save),
+              StatusChip(
+                label: 'Local Only',
+                color: AppColors.textMuted,
+                icon: Icons.save,
+              ),
             ],
           ),
           const SizedBox(height: AppSpacing.md),
-          Text('No Active Incident', style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+          Text(
+            'No Active Incident',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           const SizedBox(height: AppSpacing.xs),
-          const Text('Start or select an incident to begin field tracking.', style: TextStyle(color: AppColors.textMuted)),
+          const Text(
+            'Start or select an incident to begin field tracking.',
+            style: TextStyle(color: AppColors.textMuted),
+          ),
           const SizedBox(height: AppSpacing.lg),
           Row(
             children: [
               ElevatedButton.icon(
-                onPressed: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const IncidentsPage())),
+                onPressed: () => AppRouter.navigate(context, 3), // Incidents
                 icon: const Icon(Icons.add),
                 label: const Text('New Incident'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primaryAccent,
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
               ),
               const SizedBox(width: AppSpacing.md),
               OutlinedButton(
-                onPressed: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const IncidentsPage())),
+                onPressed: () => AppRouter.navigate(context, 3), // Incidents
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.textPrimary,
                   side: const BorderSide(color: AppColors.border),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
                 child: const Text('Open Incidents'),
               ),
@@ -115,10 +123,26 @@ class DashboardPage extends StatelessWidget {
       mainAxisSpacing: AppSpacing.md,
       childAspectRatio: 2.5,
       children: const [
-        DashboardStatCard(title: 'Personnel', value: '0 Assigned', icon: Icons.people),
-        DashboardStatCard(title: 'Apparatus', value: '0 In Use', icon: Icons.fire_truck),
-        DashboardStatCard(title: 'Tickets', value: '0 OF-297', icon: Icons.receipt),
-        DashboardStatCard(title: 'Weather', value: 'Not Loaded', icon: Icons.cloud),
+        DashboardStatCard(
+          title: 'Personnel',
+          value: '0 Assigned',
+          icon: Icons.people,
+        ),
+        DashboardStatCard(
+          title: 'Apparatus',
+          value: '0 In Use',
+          icon: Icons.fire_truck,
+        ),
+        DashboardStatCard(
+          title: 'Tickets',
+          value: '0 OF-297',
+          icon: Icons.receipt,
+        ),
+        DashboardStatCard(
+          title: 'Weather',
+          value: 'Not Loaded',
+          icon: Icons.cloud,
+        ),
       ],
     );
   }
@@ -127,7 +151,15 @@ class DashboardPage extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('QUICK ACTIONS', style: TextStyle(color: AppColors.textMuted, fontWeight: FontWeight.bold, letterSpacing: 1.2, fontSize: 12)),
+        const Text(
+          'QUICK ACTIONS',
+          style: TextStyle(
+            color: AppColors.textMuted,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1.2,
+            fontSize: 12,
+          ),
+        ),
         const SizedBox(height: AppSpacing.md),
         GridView.count(
           crossAxisCount: columns,
@@ -137,12 +169,36 @@ class DashboardPage extends StatelessWidget {
           mainAxisSpacing: AppSpacing.md,
           childAspectRatio: 1.2,
           children: [
-            QuickActionCard(title: 'Add\nPersonnel', icon: Icons.person_add, onTap: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const PersonnelPage()))),
-            QuickActionCard(title: 'Add\nApparatus', icon: Icons.fire_truck, onTap: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const ApparatusPage()))),
-            QuickActionCard(title: 'New\nOF-297', icon: Icons.receipt_long, onTap: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const TicketsPage()))),
-            QuickActionCard(title: 'Fire\nMap', icon: Icons.map, onTap: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const FireMapPage()))),
-            QuickActionCard(title: 'Check\nWeather', icon: Icons.cloud, onTap: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const WeatherPage()))),
-            QuickActionCard(title: 'Field\nCalc', icon: Icons.calculate, onTap: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const FieldCalculatorPage()))),
+            QuickActionCard(
+              title: 'Add\nPersonnel',
+              icon: Icons.person_add,
+              onTap: () => AppRouter.navigate(context, 1),
+            ),
+            QuickActionCard(
+              title: 'Add\nApparatus',
+              icon: Icons.fire_truck,
+              onTap: () => AppRouter.navigate(context, 2),
+            ),
+            QuickActionCard(
+              title: 'New\nOF-297',
+              icon: Icons.receipt_long,
+              onTap: () => AppRouter.navigate(context, 4),
+            ),
+            QuickActionCard(
+              title: 'Fire\nMap',
+              icon: Icons.map,
+              onTap: () => AppRouter.navigate(context, 5),
+            ),
+            QuickActionCard(
+              title: 'Check\nWeather',
+              icon: Icons.cloud,
+              onTap: () => AppRouter.navigate(context, 6),
+            ),
+            QuickActionCard(
+              title: 'Field\nCalc',
+              icon: Icons.calculate,
+              onTap: () => AppRouter.navigate(context, 7),
+            ),
           ],
         ),
       ],
@@ -170,7 +226,11 @@ class _ReadinessRow extends StatelessWidget {
   final String status;
   final bool isLast;
 
-  const _ReadinessRow({required this.label, required this.status, this.isLast = false});
+  const _ReadinessRow({
+    required this.label,
+    required this.status,
+    this.isLast = false,
+  });
 
   @override
   Widget build(BuildContext context) {

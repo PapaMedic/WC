@@ -15,13 +15,14 @@ class AppTheme {
       textTheme: const TextTheme(
         bodyLarge: TextStyle(color: AppColors.textPrimary),
         bodyMedium: TextStyle(color: AppColors.textPrimary),
-        titleLarge: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold),
+        titleLarge: TextStyle(
+          color: AppColors.textPrimary,
+          fontWeight: FontWeight.bold,
+        ),
       ),
       cardTheme: CardThemeData(
         color: AppColors.cardBackground,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
       appBarTheme: const AppBarTheme(
         backgroundColor: AppColors.cardBackground,
@@ -31,9 +32,7 @@ class AppTheme {
       drawerTheme: const DrawerThemeData(
         backgroundColor: AppColors.scaffoldBackground,
       ),
-      iconTheme: const IconThemeData(
-        color: AppColors.textPrimary,
-      ),
+      iconTheme: const IconThemeData(color: AppColors.textPrimary),
     );
   }
 }

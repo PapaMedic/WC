@@ -25,9 +25,18 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+          Text(
+            title,
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+            ),
+          ),
           if (subtitle != null) ...[
-            Text(subtitle!, style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+            Text(
+              subtitle!,
+              style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+            ),
           ],
         ],
       ),
@@ -43,14 +52,18 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
                     Text(
                       isOnline ? 'Online' : 'Offline',
                       style: TextStyle(
-                        color: isOnline ? AppColors.secondaryAccent : Colors.redAccent,
+                        color: isOnline
+                            ? AppColors.secondaryAccent
+                            : Colors.redAccent,
                         fontSize: 12,
                       ),
                     ),
                   const SizedBox(width: 8),
                   Icon(
                     isOnline ? Icons.cloud_done : Icons.cloud_off,
-                    color: isOnline ? AppColors.secondaryAccent : Colors.redAccent,
+                    color: isOnline
+                        ? AppColors.secondaryAccent
+                        : Colors.redAccent,
                     size: 20,
                   ),
                 ],

@@ -13,21 +13,20 @@ class FireMapPage extends StatelessWidget {
         if (!isOnline) {
           return const ModulePlaceholderPage(
             title: 'Fire Map',
-            subtitle: 'Tactical GIS & Mapping',
-            currentIndex: 5,
             icon: Icons.wifi_off,
             description: 'Unable to obtain: Network failure',
-            futureFeatures: 'Connect to a network to access tactical GIS and mapping features.',
+            futureFeatures:
+                'Connect to a network to access tactical GIS and mapping features.',
           );
         }
 
         return const ModulePlaceholderPage(
           title: 'Fire Map',
-          subtitle: 'Tactical GIS & Mapping',
-          currentIndex: 5,
           icon: Icons.map,
-          description: 'Fire map module is currently under construction. No GIS or map provider added yet.',
-          futureFeatures: '- Offline vector and topo maps\n- Drop tactical waypoints and draw perimeters\n- Overlay active fire perimeters (NIFC)\n- Measure distance and area in the field',
+          description:
+              'Fire map module is currently under construction. No GIS or map provider added yet.',
+          futureFeatures:
+              '- Offline vector and topo maps\n- Drop tactical waypoints and draw perimeters\n- Overlay active fire perimeters (NIFC)\n- Measure distance and area in the field',
         );
       },
     );

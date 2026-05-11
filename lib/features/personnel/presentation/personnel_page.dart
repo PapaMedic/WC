@@ -8,11 +8,10 @@ class PersonnelPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return const ModulePlaceholderPage(
       title: 'Personnel',
-      subtitle: 'Crew & Roster Management',
-      currentIndex: 1,
       icon: Icons.people,
       description: 'Personnel module is currently under construction.',
-      futureFeatures: '- Track qualifications and training records\n- Manage crew manifests\n- Monitor rest/work cycles\n- Offline syncing of crew data',
+      futureFeatures:
+          '- Track qualifications and training records\n- Manage crew manifests\n- Monitor rest/work cycles\n- Offline syncing of crew data',
     );
   }
 }

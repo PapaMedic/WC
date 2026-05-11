@@ -8,11 +8,11 @@ class IncidentsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return const ModulePlaceholderPage(
       title: 'Incidents',
-      subtitle: 'Active Incident Management',
-      currentIndex: 3,
       icon: Icons.warning,
-      description: 'Incident management module is currently under construction.',
-      futureFeatures: '- Create and manage new incidents\n- Track incident progress and details\n- Assign personnel and apparatus to active incidents\n- View historical incident data',
+      description:
+          'Incident management module is currently under construction.',
+      futureFeatures:
+          '- Create and manage new incidents\n- Track incident progress and details\n- Assign personnel and apparatus to active incidents\n- View historical incident data',
     );
   }
 }

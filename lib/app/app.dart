@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:wildland_companion_v2/app/theme/app_theme.dart';
-import 'package:wildland_companion_v2/features/dashboard/presentation/dashboard_page.dart';
+import 'package:wildland_companion_v2/app/app_router.dart';
 
 class WildlandCompanionApp extends StatelessWidget {
   const WildlandCompanionApp({super.key});
@@ -10,7 +10,7 @@ class WildlandCompanionApp extends StatelessWidget {
     return MaterialApp(
       title: 'Wildland Companion',
       theme: AppTheme.darkTheme,
-      home: const DashboardPage(),
+      home: const AppRouter(),
       debugShowCheckedModeBanner: false,
     );
   }

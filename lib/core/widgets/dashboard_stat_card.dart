@@ -33,14 +33,23 @@ class DashboardStatCard extends StatelessWidget {
               const SizedBox(width: AppSpacing.sm),
               Text(
                 title.toUpperCase(),
-                style: const TextStyle(color: AppColors.textMuted, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                style: const TextStyle(
+                  color: AppColors.textMuted,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
+                ),
               ),
             ],
           ),
           const SizedBox(height: AppSpacing.sm),
           Text(
             value,
-            style: const TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ],
       ),

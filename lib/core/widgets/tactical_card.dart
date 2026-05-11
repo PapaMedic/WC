@@ -28,10 +28,10 @@ class TacticalCard extends StatelessWidget {
             Text(
               title!.toUpperCase(),
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    color: AppColors.textMuted,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.2,
-                  ),
+                color: AppColors.textMuted,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.2,
+              ),
             ),
             const SizedBox(height: AppSpacing.md),
           ],
