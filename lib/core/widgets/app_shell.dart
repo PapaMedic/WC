@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:wildland_companion_v2/app/theme/app_colors.dart';
+import 'package:wildland_companion_v2/app/theme/app_spacing.dart';
+import 'package:wildland_companion_v2/core/widgets/app_sidebar.dart';
+import 'package:wildland_companion_v2/core/widgets/app_top_bar.dart';
+
 import 'package:wildland_companion_v2/features/dashboard/presentation/dashboard_page.dart';
 import 'package:wildland_companion_v2/features/personnel/presentation/personnel_page.dart';
 import 'package:wildland_companion_v2/features/apparatus/presentation/apparatus_page.dart';
@@ -12,88 +15,95 @@ import 'package:wildland_companion_v2/features/field_calculator/presentation/fie
 class AppShell extends StatelessWidget {
   final Widget body;
   final String title;
+  final String? subtitle;
   final int currentIndex;
 
   const AppShell({
     super.key,
     required this.body,
     required this.title,
+    this.subtitle,
     required this.currentIndex,
   });
 
-  void _navigateTo(BuildContext context, Widget page) {
+  void _navigateTo(BuildContext context, int index) {
+    if (index == currentIndex) return;
+    
+    Widget page;
+    switch (index) {
+      case 0: page = const DashboardPage(); break;
+      case 1: page = const PersonnelPage(); break;
+      case 2: page = const ApparatusPage(); break;
+      case 3: page = const IncidentsPage(); break;
+      case 4: page = const TicketsPage(); break;
+      case 5: page = const FireMapPage(); break;
+      case 6: page = const WeatherPage(); break;
+      case 7: page = const FieldCalculatorPage(); break;
+      default: page = const DashboardPage();
+    }
+    
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => page),
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) => page,
+        transitionDuration: Duration.zero,
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(title),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.sync, color: AppColors.secondaryAccent),
-            onPressed: () {},
-            tooltip: 'Offline Ready',
-          ),
-        ],
-      ),
-      drawer: Drawer(
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            DrawerHeader(
-              decoration: const BoxDecoration(
-                color: AppColors.cardBackground,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  const Icon(Icons.local_fire_department, color: AppColors.primaryAccent, size: 48),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Wildland Companion',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isMobile = constraints.maxWidth < 700;
+        final isVeryWide = constraints.maxWidth >= 1100;
+
+        Widget content = body;
+        if (isVeryWide) {
+          content = Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: AppSpacing.maxContentWidth),
+              child: body,
+            ),
+          );
+        }
+
+        if (isMobile) {
+          return Scaffold(
+            appBar: AppTopBar(title: title, subtitle: subtitle, isMobile: true),
+            drawer: Drawer(
+              child: AppSidebar(
+                currentIndex: currentIndex,
+                onNavigate: (i) {
+                  Navigator.pop(context);
+                  _navigateTo(context, i);
+                },
               ),
             ),
-            _buildDrawerItem(context, 0, 'Dashboard', Icons.dashboard, const DashboardPage()),
-            _buildDrawerItem(context, 1, 'Personnel', Icons.people, const PersonnelPage()),
-            _buildDrawerItem(context, 2, 'Apparatus', Icons.fire_truck, const ApparatusPage()),
-            _buildDrawerItem(context, 3, 'Incidents', Icons.warning, const IncidentsPage()),
-            _buildDrawerItem(context, 4, 'Tickets / OF-297', Icons.receipt, const TicketsPage()),
-            _buildDrawerItem(context, 5, 'Fire Map', Icons.map, const FireMapPage()),
-            _buildDrawerItem(context, 6, 'Weather', Icons.cloud, const WeatherPage()),
-            _buildDrawerItem(context, 7, 'Field Calculator', Icons.calculate, const FieldCalculatorPage()),
-          ],
-        ),
-      ),
-      body: body,
-    );
-  }
-
-  Widget _buildDrawerItem(BuildContext context, int index, String title, IconData icon, Widget page) {
-    final isSelected = index == currentIndex;
-    return ListTile(
-      leading: Icon(icon, color: isSelected ? AppColors.primaryAccent : AppColors.textPrimary),
-      title: Text(
-        title,
-        style: TextStyle(
-          color: isSelected ? AppColors.primaryAccent : AppColors.textPrimary,
-          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-        ),
-      ),
-      selected: isSelected,
-      selectedTileColor: AppColors.cardBackground,
-      onTap: () {
-        Navigator.pop(context); // Close drawer
-        if (!isSelected) {
-          _navigateTo(context, page);
+            body: content,
+          );
         }
+
+        return Scaffold(
+          body: Row(
+            children: [
+              SizedBox(
+                width: AppSpacing.sidebarWidth,
+                child: AppSidebar(
+                  currentIndex: currentIndex,
+                  onNavigate: (i) => _navigateTo(context, i),
+                ),
+              ),
+              Expanded(
+                child: Column(
+                  children: [
+                    AppTopBar(title: title, subtitle: subtitle, isMobile: false),
+                    Expanded(child: content),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
       },
     );
   }

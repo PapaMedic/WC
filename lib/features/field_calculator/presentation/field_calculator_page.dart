@@ -1,23 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:wildland_companion_v2/app/theme/app_spacing.dart';
-import 'package:wildland_companion_v2/core/widgets/app_shell.dart';
-import 'package:wildland_companion_v2/core/widgets/tactical_card.dart';
+import 'package:wildland_companion_v2/core/widgets/module_placeholder_page.dart';
 
 class FieldCalculatorPage extends StatelessWidget {
   const FieldCalculatorPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return AppShell(
+    return const ModulePlaceholderPage(
       title: 'Field Calculator',
+      subtitle: 'Tactical Utilities & Conversions',
       currentIndex: 7,
-      body: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: TacticalCard(
-          title: 'Coming Soon',
-          child: const Text('Field calculator tools coming soon.'),
-        ),
-      ),
+      icon: Icons.calculate,
+      description: 'Field calculator tools are currently under construction.',
+      futureFeatures: '- Fine Dead Fuel Moisture (FDFM) calculations\n- Probability of Ignition (PIG) tables\n- Pump and hose friction loss estimates\n- Quick unit conversions (chains to miles, etc.)',
     );
   }
 }

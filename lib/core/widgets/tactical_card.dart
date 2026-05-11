@@ -6,45 +6,63 @@ class TacticalCard extends StatelessWidget {
   final String? title;
   final Widget child;
   final VoidCallback? onTap;
+  final EdgeInsetsGeometry padding;
 
   const TacticalCard({
     super.key,
     this.title,
     required this.child,
     this.onTap,
+    this.padding = const EdgeInsets.all(AppSpacing.lg),
   });
 
   @override
   Widget build(BuildContext context) {
     Widget cardContent = Padding(
-      padding: const EdgeInsets.all(AppSpacing.md),
+      padding: padding,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           if (title != null) ...[
             Text(
-              title!,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: AppColors.secondaryAccent,
+              title!.toUpperCase(),
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: AppColors.textMuted,
                     fontWeight: FontWeight.bold,
+                    letterSpacing: 1.2,
                   ),
             ),
-            const SizedBox(height: AppSpacing.sm),
+            const SizedBox(height: AppSpacing.md),
           ],
           child,
         ],
       ),
     );
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: AppSpacing.md),
-      child: onTap != null
-          ? InkWell(
-              borderRadius: BorderRadius.circular(12),
-              onTap: onTap,
-              child: cardContent,
-            )
-          : cardContent,
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border, width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.2),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: onTap != null
+            ? InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: onTap,
+                child: cardContent,
+              )
+            : cardContent,
+      ),
     );
   }
 }
