@@ -51,11 +51,7 @@ class TopographicCard extends StatelessWidget {
         child: Stack(
           children: [
             // Topographic overlay on right side
-            Positioned.fill(
-              child: CustomPaint(
-                painter: _TopoPainter(),
-              ),
-            ),
+            Positioned.fill(child: CustomPaint(painter: _TopoPainter())),
             // Actual content
             if (onTap != null)
               Material(
@@ -105,8 +101,10 @@ class _TopoPainter extends CustomPainter {
       const steps = 64;
       for (int s = 0; s <= steps; s++) {
         final t = 2 * math.pi * s / steps;
-        final x = centerX + rx * math.cos(t + angle) * (1 + 0.06 * math.sin(3 * t));
-        final y = centerY + ry * math.sin(t) * (1 + 0.04 * math.cos(2 * t + angle));
+        final x =
+            centerX + rx * math.cos(t + angle) * (1 + 0.06 * math.sin(3 * t));
+        final y =
+            centerY + ry * math.sin(t) * (1 + 0.04 * math.cos(2 * t + angle));
         if (s == 0) {
           path.moveTo(x, y);
         } else {

@@ -5,7 +5,8 @@ class AppTheme {
   static ThemeData get darkTheme {
     return ThemeData(
       useMaterial3: true,
-      scaffoldBackgroundColor: Colors.transparent, // let WildlandBackground show
+      scaffoldBackgroundColor:
+          Colors.transparent, // let WildlandBackground show
       primaryColor: AppColors.primaryAccent,
       colorScheme: const ColorScheme.dark(
         primary: AppColors.primaryAccent,
@@ -53,9 +54,7 @@ class AppTheme {
         elevation: 0,
         surfaceTintColor: Colors.transparent,
       ),
-      drawerTheme: const DrawerThemeData(
-        backgroundColor: Color(0xFF111511),
-      ),
+      drawerTheme: const DrawerThemeData(backgroundColor: Color(0xFF111511)),
       iconTheme: const IconThemeData(color: AppColors.textPrimary),
       dividerTheme: const DividerThemeData(
         color: AppColors.border,

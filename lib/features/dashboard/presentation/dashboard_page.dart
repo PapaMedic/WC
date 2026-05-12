@@ -73,10 +73,7 @@ class _DashboardPageState extends State<DashboardPage> {
               const SizedBox(height: AppSpacing.md),
               _DashboardSectionLabel(label: 'QUICK ACTIONS'),
               const SizedBox(height: AppSpacing.sm),
-              _QuickActionsGrid(
-                context: context,
-                isMobile: isMobile,
-              ),
+              _QuickActionsGrid(context: context, isMobile: isMobile),
               const SizedBox(height: AppSpacing.xl),
               _DashboardFooter(now: _now),
               const SizedBox(height: AppSpacing.xl),
@@ -162,7 +159,9 @@ class _ActiveIncidentCard extends StatelessWidget {
   @override
   Widget build(BuildContext outerContext) {
     final hasIncident = _activeIncidentName.isNotEmpty;
-    final incidentLabel = hasIncident ? _activeIncidentName : 'No Active Incident';
+    final incidentLabel = hasIncident
+        ? _activeIncidentName
+        : 'No Active Incident';
 
     return TopographicCard(
       padding: const EdgeInsets.all(20),
@@ -175,9 +174,7 @@ class _ActiveIncidentCard extends StatelessWidget {
               const _LabelChip(label: 'ACTIVE INCIDENT'),
               const Spacer(),
               Icon(
-                hasIncident
-                    ? Icons.warning_amber_rounded
-                    : Icons.info_outline,
+                hasIncident ? Icons.warning_amber_rounded : Icons.info_outline,
                 color: hasIncident
                     ? AppColors.primaryAccent
                     : AppColors.textMuted,
@@ -376,11 +373,7 @@ class _WeatherCard extends StatelessWidget {
                 flex: 3,
                 child: Row(
                   children: [
-                    const Icon(
-                      Icons.air,
-                      color: AppColors.textMuted,
-                      size: 24,
-                    ),
+                    const Icon(Icons.air, color: AppColors.textMuted, size: 24),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Column(
@@ -500,14 +493,16 @@ class _QuickActionsGrid extends StatelessWidget {
               Expanded(
                 child: _QuickActionTile(
                   item: actions[0],
-                  onTap: () => AppRouter.navigate(outerContext, actions[0].routeIndex),
+                  onTap: () =>
+                      AppRouter.navigate(outerContext, actions[0].routeIndex),
                 ),
               ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: _QuickActionTile(
                   item: actions[1],
-                  onTap: () => AppRouter.navigate(outerContext, actions[1].routeIndex),
+                  onTap: () =>
+                      AppRouter.navigate(outerContext, actions[1].routeIndex),
                 ),
               ),
             ],
@@ -518,14 +513,16 @@ class _QuickActionsGrid extends StatelessWidget {
               Expanded(
                 child: _QuickActionTile(
                   item: actions[2],
-                  onTap: () => AppRouter.navigate(outerContext, actions[2].routeIndex),
+                  onTap: () =>
+                      AppRouter.navigate(outerContext, actions[2].routeIndex),
                 ),
               ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: _QuickActionTile(
                   item: actions[3],
-                  onTap: () => AppRouter.navigate(outerContext, actions[3].routeIndex),
+                  onTap: () =>
+                      AppRouter.navigate(outerContext, actions[3].routeIndex),
                 ),
               ),
             ],
@@ -592,10 +589,7 @@ class _QuickActionTile extends StatelessWidget {
                     colors: [Color(0xFF1C201C), Color(0xFF171B17)],
                   ),
                   borderRadius: radius,
-                  border: Border.all(
-                    color: const Color(0xFF2A2F2A),
-                    width: 1,
-                  ),
+                  border: Border.all(color: const Color(0xFF2A2F2A), width: 1),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.25),
@@ -645,10 +639,7 @@ class _QuickActionTile extends StatelessWidget {
             left: 0,
             right: 0,
             bottom: 0,
-            child: Container(
-              height: 2,
-              color: AppColors.primaryAccent,
-            ),
+            child: Container(height: 2, color: AppColors.primaryAccent),
           ),
         ],
       ),
@@ -678,11 +669,7 @@ class _TacticalSplitCard extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF1C201C),
-            Color(0xFF181C18),
-            Color(0xFF141714),
-          ],
+          colors: [Color(0xFF1C201C), Color(0xFF181C18), Color(0xFF141714)],
         ),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
@@ -703,9 +690,7 @@ class _TacticalSplitCard extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(
-                child: _buildHalfSection(left, onTapLeft, isLeft: true),
-              ),
+              Expanded(child: _buildHalfSection(left, onTapLeft, isLeft: true)),
               Container(
                 width: 1,
                 color: AppColors.secondaryAccent.withValues(alpha: 0.20),
@@ -740,11 +725,7 @@ class _TacticalSplitCard extends StatelessWidget {
               color: AppColors.primaryAccent.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(
-              half.icon,
-              color: AppColors.primaryAccent,
-              size: 22,
-            ),
+            child: Icon(half.icon, color: AppColors.primaryAccent, size: 22),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -800,11 +781,7 @@ class _TacticalSplitCard extends StatelessWidget {
     if (onTap != null) {
       return Material(
         color: Colors.transparent,
-        child: InkWell(
-          borderRadius: radius,
-          onTap: onTap,
-          child: content,
-        ),
+        child: InkWell(borderRadius: radius, onTap: onTap, child: content),
       );
     }
 
@@ -901,8 +878,11 @@ class _DashboardFooter extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const Icon(Icons.check_circle_outline,
-            color: AppColors.secondaryAccent, size: 14),
+        const Icon(
+          Icons.check_circle_outline,
+          color: AppColors.secondaryAccent,
+          size: 14,
+        ),
         const SizedBox(width: 6),
         Text(
           'Offline Ready  •  Last sync ${fmt.format(now)}',

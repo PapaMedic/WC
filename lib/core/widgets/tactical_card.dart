@@ -48,10 +48,7 @@ class TacticalCard extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF1C201C),
-            Color(0xFF181C18),
-          ],
+          colors: [Color(0xFF1C201C), Color(0xFF181C18)],
         ),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(

@@ -29,9 +29,7 @@ class WildlandBackground extends StatelessWidget {
           ),
         ),
         // Painted mountain/tree silhouettes
-        CustomPaint(
-          painter: _MountainSilhouettePainter(),
-        ),
+        CustomPaint(painter: _MountainSilhouettePainter()),
         // App content on top
         child,
       ],
@@ -43,7 +41,8 @@ class _MountainSilhouettePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = const Color(0xFF1A2119) // very dark olive-green
+      ..color =
+          const Color(0xFF1A2119) // very dark olive-green
       ..style = PaintingStyle.fill;
 
     // ── Far-range mountains (lighter layer — drawn first) ──
@@ -85,7 +84,8 @@ class _MountainSilhouettePainter extends CustomPainter {
 
     // ── Foreground tree line ──
     final treePaint = Paint()
-      ..color = const Color(0xFF131A12) // darkest silhouette
+      ..color =
+          const Color(0xFF131A12) // darkest silhouette
       ..style = PaintingStyle.fill;
 
     _drawTreeLine(canvas, size, treePaint);

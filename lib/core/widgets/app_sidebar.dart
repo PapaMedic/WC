@@ -19,17 +19,9 @@ class AppSidebar extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [
-            Color(0xFF111511),
-            Color(0xFF0D100D),
-          ],
+          colors: [Color(0xFF111511), Color(0xFF0D100D)],
         ),
-        border: Border(
-          right: BorderSide(
-            color: Color(0xFF2A2F2A),
-            width: 1,
-          ),
-        ),
+        border: Border(right: BorderSide(color: Color(0xFF2A2F2A), width: 1)),
       ),
       child: Column(
         children: [
@@ -256,8 +248,9 @@ class _NavItem extends StatelessWidget {
               dense: true,
               leading: Icon(
                 icon,
-                color:
-                    isSelected ? AppColors.primaryAccent : AppColors.textMuted,
+                color: isSelected
+                    ? AppColors.primaryAccent
+                    : AppColors.textMuted,
                 size: 20,
               ),
               title: Text(
@@ -266,8 +259,7 @@ class _NavItem extends StatelessWidget {
                   color: isSelected
                       ? AppColors.textPrimary
                       : AppColors.textMuted,
-                  fontWeight:
-                      isSelected ? FontWeight.bold : FontWeight.normal,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                   fontSize: 13,
                 ),
               ),
@@ -281,8 +273,9 @@ class _NavItem extends StatelessWidget {
                       ),
                     )
                   : null,
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+              ),
               minLeadingWidth: 20,
             ),
           ),

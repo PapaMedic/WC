@@ -18,9 +18,7 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: const BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: Color(0xFF1E261E), width: 1),
-        ),
+        border: Border(bottom: BorderSide(color: Color(0xFF1E261E), width: 1)),
       ),
       child: AppBar(
         backgroundColor: Colors.transparent,
