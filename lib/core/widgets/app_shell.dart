@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:wildland_companion_v2/app/theme/app_spacing.dart';
 import 'package:wildland_companion_v2/core/widgets/app_sidebar.dart';
 import 'package:wildland_companion_v2/core/widgets/app_top_bar.dart';
+import 'package:wildland_companion_v2/core/widgets/wildland_background.dart';
 
 class AppShell extends StatelessWidget {
   final Widget body;
@@ -39,44 +40,55 @@ class AppShell extends StatelessWidget {
         }
 
         if (isMobile) {
-          return Scaffold(
-            appBar: AppTopBar(title: title, subtitle: subtitle, isMobile: true),
-            drawer: Drawer(
-              child: AppSidebar(
-                currentIndex: currentIndex,
-                onNavigate: (i) {
-                  Navigator.pop(context); // close drawer
-                  onNavigate(i);
-                },
+          return WildlandBackground(
+            child: Scaffold(
+              backgroundColor: Colors.transparent,
+              appBar: AppTopBar(
+                title: title,
+                subtitle: subtitle,
+                isMobile: true,
               ),
+              drawer: Drawer(
+                backgroundColor: const Color(0xFF111511),
+                child: AppSidebar(
+                  currentIndex: currentIndex,
+                  onNavigate: (i) {
+                    Navigator.pop(context); // close drawer
+                    onNavigate(i);
+                  },
+                ),
+              ),
+              body: content,
             ),
-            body: content,
           );
         }
 
-        return Scaffold(
-          body: Row(
-            children: [
-              SizedBox(
-                width: AppSpacing.sidebarWidth,
-                child: AppSidebar(
-                  currentIndex: currentIndex,
-                  onNavigate: onNavigate,
+        return WildlandBackground(
+          child: Scaffold(
+            backgroundColor: Colors.transparent,
+            body: Row(
+              children: [
+                SizedBox(
+                  width: AppSpacing.sidebarWidth,
+                  child: AppSidebar(
+                    currentIndex: currentIndex,
+                    onNavigate: onNavigate,
+                  ),
                 ),
-              ),
-              Expanded(
-                child: Column(
-                  children: [
-                    AppTopBar(
-                      title: title,
-                      subtitle: subtitle,
-                      isMobile: false,
-                    ),
-                    Expanded(child: content),
-                  ],
+                Expanded(
+                  child: Column(
+                    children: [
+                      AppTopBar(
+                        title: title,
+                        subtitle: subtitle,
+                        isMobile: false,
+                      ),
+                      Expanded(child: content),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },

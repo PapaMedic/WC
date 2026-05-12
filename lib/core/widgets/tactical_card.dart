@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:wildland_companion_v2/app/theme/app_colors.dart';
 import 'package:wildland_companion_v2/app/theme/app_spacing.dart';
 
+/// General-purpose card with the tactical dark styling.
+/// For the topographic overlay effect, use [TopographicCard] instead.
 class TacticalCard extends StatelessWidget {
   final String? title;
   final Widget child;
@@ -31,6 +33,7 @@ class TacticalCard extends StatelessWidget {
                 color: AppColors.textMuted,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 1.2,
+                fontSize: 10,
               ),
             ),
             const SizedBox(height: AppSpacing.md),
@@ -42,13 +45,23 @@ class TacticalCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border, width: 1),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF1C201C),
+            Color(0xFF181C18),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: AppColors.secondaryAccent.withValues(alpha: 0.25),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.2),
-            blurRadius: 8,
+            color: Colors.black.withValues(alpha: 0.30),
+            blurRadius: 10,
             offset: const Offset(0, 4),
           ),
         ],
@@ -57,7 +70,7 @@ class TacticalCard extends StatelessWidget {
         color: Colors.transparent,
         child: onTap != null
             ? InkWell(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(14),
                 onTap: onTap,
                 child: cardContent,
               )
