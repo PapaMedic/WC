@@ -1,17 +1,16 @@
-# wildland_companion_v2
+# Wildland Companion
 
-A new Flutter project.
+A operational dashboard to facilitate and speed up filing OF297 forms on wildland incidents.
 
-## Getting Started
+## WIP
 
-This project is a starting point for a Flutter application.
+This application is a work in progress by a solo developer.
+All rights reserved by owner.
 
-A few resources to get you started if this is your first Flutter project:
-
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Features to be released
+• Operational Dashboard
+• Incident Filing
+• OF297 form creation
+• Fire Weather and Calculations
+• Interactive Fire Map
+• Department/Organization Grouping
