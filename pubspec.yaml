@@ -38,6 +38,8 @@ dependencies:
   # PDF generation (future OF-297 support)
   pdf: ^3.11.3
   printing: ^5.14.2
+  syncfusion_flutter_pdf: ^29.2.11
+  image: ^4.8.0
 
   # Signature pad
   signature: ^5.5.0
@@ -46,6 +48,7 @@ dependencies:
   path_provider: ^2.1.5
 
   # Share/export files
+  file_selector: ^1.0.3
   share_plus: ^11.1.0
 
   # Optional future backend support
@@ -63,6 +66,7 @@ flutter:
 
   assets:
     - assets/images/
+    - assets/OF297/OF297-24.pdf
 
   # Example custom fonts later
   # fonts:

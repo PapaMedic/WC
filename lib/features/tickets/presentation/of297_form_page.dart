@@ -1,0 +1,1184 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+import 'package:uuid/uuid.dart';
+import 'package:wildland_companion_v2/app/theme/app_spacing.dart';
+import 'package:wildland_companion_v2/core/widgets/wildland_background.dart';
+import 'package:wildland_companion_v2/features/apparatus/data/apparatus_repository.dart';
+import 'package:wildland_companion_v2/features/personnel/data/personnel_repository.dart';
+import 'package:wildland_companion_v2/features/tickets/models/of297_equipment_time_entry.dart';
+import 'package:wildland_companion_v2/features/tickets/models/of297_personnel_time_entry.dart';
+import 'package:wildland_companion_v2/features/tickets/models/of297_shift_ticket.dart';
+import 'package:wildland_companion_v2/features/tickets/presentation/of297_review_page.dart';
+import 'package:wildland_companion_v2/features/tickets/presentation/widgets/of297_section_card.dart';
+import 'package:wildland_companion_v2/features/tickets/presentation/widgets/of297_status_pill.dart';
+import 'package:wildland_companion_v2/features/tickets/presentation/widgets/of297_text_field.dart';
+import 'package:wildland_companion_v2/features/tickets/state/tickets_state.dart';
+
+/// First working OF-297 form.
+///
+/// This page saves the form data that will eventually feed PDF export. PDF
+/// mapping is still intentionally left out so the data workflow can stabilize.
+class OF297FormPage extends StatefulWidget {
+  final String incidentId;
+  final String incidentName;
+  final String incidentNumber;
+  final String resourceOrderNumber;
+  final String financialCode;
+  final String? ticketId;
+
+  const OF297FormPage({
+    super.key,
+    required this.incidentId,
+    required this.incidentName,
+    this.incidentNumber = '',
+    this.resourceOrderNumber = '',
+    this.financialCode = '',
+    this.ticketId,
+  });
+
+  @override
+  State<OF297FormPage> createState() => _OF297FormPageState();
+}
+
+class _OF297FormPageState extends State<OF297FormPage> {
+  final _uuid = const Uuid();
+  final _dateFormat = DateFormat('MM/dd/yyyy');
+  final _apparatusRepository = ApparatusRepository();
+  final _personnelRepository = PersonnelRepository();
+
+  final _agreementNumberController = TextEditingController();
+  final _resourceOrderNumberController = TextEditingController();
+  final _incidentNameController = TextEditingController();
+  final _incidentNumberController = TextEditingController();
+  final _financialCodeController = TextEditingController();
+  final _contractorNameController = TextEditingController();
+  final _equipmentMakeModelController = TextEditingController();
+  final _equipmentTypeController = TextEditingController();
+  final _serialVinController = TextEditingController();
+  final _equipmentIdController = TextEditingController();
+  final _remarksController = TextEditingController();
+  final _contractorRepController = TextEditingController();
+  final _supervisorController = TextEditingController();
+
+  final List<_EquipmentRowControllers> _equipmentRows =
+      List.generate(4, (_) => _EquipmentRowControllers());
+  final List<_PersonnelRowControllers> _personnelRows =
+      List.generate(4, (_) => _PersonnelRowControllers());
+
+  OF297ShiftTicket? _ticket;
+  bool _transportRetained = false;
+  bool? _isMobilization;
+  bool _rateIsHours = true;
+  bool _rateIsMiles = false;
+  bool _isInitializing = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _initializeTicket());
+  }
+
+  @override
+  void dispose() {
+    _agreementNumberController.dispose();
+    _resourceOrderNumberController.dispose();
+    _incidentNameController.dispose();
+    _incidentNumberController.dispose();
+    _financialCodeController.dispose();
+    _contractorNameController.dispose();
+    _equipmentMakeModelController.dispose();
+    _equipmentTypeController.dispose();
+    _serialVinController.dispose();
+    _equipmentIdController.dispose();
+    _remarksController.dispose();
+    _contractorRepController.dispose();
+    _supervisorController.dispose();
+    for (final row in _equipmentRows) {
+      row.dispose();
+    }
+    for (final row in _personnelRows) {
+      row.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _initializeTicket() async {
+    final ticketsState = context.read<TicketsState>();
+    await ticketsState.loadTickets();
+
+    var ticket = widget.ticketId == null
+        ? null
+        : ticketsState.ticketById(widget.ticketId!);
+
+    if (ticket == null) {
+      final now = DateTime.now();
+      final selectedApparatus =
+          await _apparatusRepository.getSelectedApparatus();
+      final assignedPersonnel =
+          await _personnelRepository.getAssignedPersonnel();
+
+      ticket = OF297ShiftTicket(
+        id: _uuid.v4(),
+        incidentId: widget.incidentId,
+        incidentName: widget.incidentName,
+        incidentNumber: widget.incidentNumber,
+        resourceOrderNumber: widget.resourceOrderNumber,
+        financialCode: widget.financialCode,
+        equipmentMakeModel: selectedApparatus?.equipmentMakeModel ?? '',
+        equipmentType: selectedApparatus?.equipmentType ?? '',
+        serialVinNumber: selectedApparatus?.serialVinNumber ?? '',
+        equipmentId: selectedApparatus?.licenseIdNumber ?? '',
+        personnelEntries: assignedPersonnel.take(4).map((person) {
+          return OF297PersonnelTimeEntry(
+            id: _uuid.v4(),
+            name: person.name,
+            position: person.qualification,
+          );
+        }).toList(),
+        createdAt: now,
+        updatedAt: now,
+      );
+      await ticketsState.addTicket(ticket);
+    }
+
+    if (!mounted) return;
+    _populateForm(ticket);
+  }
+
+  void _populateForm(OF297ShiftTicket ticket) {
+    setState(() {
+      _ticket = ticket;
+      _agreementNumberController.text = ticket.agreementNumber;
+      _resourceOrderNumberController.text = ticket.resourceOrderNumber;
+      _incidentNameController.text = ticket.incidentName;
+      _incidentNumberController.text = ticket.incidentNumber;
+      _financialCodeController.text = ticket.financialCode;
+      _contractorNameController.text = ticket.contractorName;
+      _equipmentMakeModelController.text = ticket.equipmentMakeModel;
+      _equipmentTypeController.text = ticket.equipmentType;
+      _serialVinController.text = ticket.serialVinNumber;
+      _equipmentIdController.text = ticket.equipmentId;
+      _remarksController.text = ticket.remarks;
+      _contractorRepController.text = ticket.contractorRepresentativeName;
+      _supervisorController.text = ticket.incidentSupervisorName;
+      _transportRetained = ticket.transportRetained;
+      _isMobilization = ticket.isMobilization;
+      _rateIsHours = ticket.rateIsHours;
+      _rateIsMiles = ticket.rateIsMiles;
+      _populateEquipmentRows(ticket.equipmentEntries);
+      _populatePersonnelRows(ticket.personnelEntries);
+      _isInitializing = false;
+    });
+  }
+
+  void _populateEquipmentRows(List<OF297EquipmentTimeEntry> entries) {
+    for (var i = 0; i < _equipmentRows.length; i++) {
+      if (i >= entries.length) continue;
+      final row = _equipmentRows[i];
+      final entry = entries[i];
+      row.date.text = _formatDate(entry.date);
+      if (_usesMileage) {
+        row.start.text = _formatNullableNumber(entry.mileageStart);
+        row.stop.text = _formatNullableNumber(entry.mileageEnd);
+        row.total.text = _formatNumber(entry.totalMiles);
+      } else {
+        row.start.text = _formatTime(entry.startTime);
+        row.stop.text = _formatTime(entry.stopTime);
+        row.total.text = _formatNumber(entry.totalHours);
+      }
+      row.quantity.text = _formatNumber(entry.specialRateQuantity);
+      row.type.text = entry.rateType;
+      row.notes.text = entry.notes;
+    }
+  }
+
+  void _populatePersonnelRows(List<OF297PersonnelTimeEntry> entries) {
+    for (var i = 0; i < _personnelRows.length; i++) {
+      if (i >= entries.length) continue;
+      final row = _personnelRows[i];
+      final entry = entries[i];
+      row.date.text = _formatDate(entry.date);
+      row.name.text = entry.name;
+      row.guaranteeStart.text = _formatTime(entry.guaranteeStartTime);
+      row.guaranteeStop.text = _formatTime(entry.guaranteeStopTime);
+      row.start.text = _formatTime(entry.startTime);
+      row.stop.text = _formatTime(entry.stopTime);
+      row.total.text = _formatNumber(entry.totalHours);
+      row.notes.text = entry.notes;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ticket = _ticket;
+
+    if (_isInitializing || ticket == null) {
+      return const WildlandBackground(
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          body: Center(child: CircularProgressIndicator()),
+        ),
+      );
+    }
+
+    final readOnly = ticket.isFinalized;
+
+    return WildlandBackground(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          title: const Text('OF-297 Shift Ticket'),
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: AppSpacing.md),
+              child: Center(
+                child: OF297StatusPill(isFinalized: ticket.isFinalized),
+              ),
+            ),
+          ],
+        ),
+        body: ListView(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          children: [
+            OF297SectionCard(
+              title: 'Incident And Order',
+              child: Column(
+                children: [
+                  OF297TextField(
+                    label: '1. Agreement Number',
+                    controller: _agreementNumberController,
+                    readOnly: readOnly,
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  OF297TextField(
+                    label: '2. Contractor/Agency Name',
+                    controller: _contractorNameController,
+                    readOnly: readOnly,
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  OF297TextField(
+                    label: '3. Resource Order Number',
+                    controller: _resourceOrderNumberController,
+                    readOnly: readOnly,
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  OF297TextField(
+                    label: '4. Incident Name',
+                    controller: _incidentNameController,
+                    readOnly: readOnly,
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  OF297TextField(
+                    label: '5. Incident Number',
+                    controller: _incidentNumberController,
+                    readOnly: readOnly,
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  OF297TextField(
+                    label: '6. Financial Code',
+                    controller: _financialCodeController,
+                    readOnly: readOnly,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            OF297SectionCard(
+              title: 'Equipment',
+              child: Column(
+                children: [
+                  OF297TextField(
+                    label: '7. Equipment Make/Model',
+                    controller: _equipmentMakeModelController,
+                    readOnly: readOnly,
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  OF297TextField(
+                    label: '8. Equipment Type',
+                    controller: _equipmentTypeController,
+                    readOnly: readOnly,
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  OF297TextField(
+                    label: '9. Serial/VIN Number',
+                    controller: _serialVinController,
+                    readOnly: readOnly,
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  OF297TextField(
+                    label: '10. License/ID Number',
+                    controller: _equipmentIdController,
+                    readOnly: readOnly,
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('12. Transport retained'),
+                    value: _transportRetained,
+                    onChanged: readOnly
+                        ? null
+                        : (value) {
+                            setState(() => _transportRetained = value);
+                          },
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  Wrap(
+                    spacing: AppSpacing.md,
+                    runSpacing: AppSpacing.sm,
+                    children: [
+                      _FormToggleChip(
+                        label: '13. Mobilization',
+                        selected: _isMobilization == true,
+                        enabled: !readOnly,
+                        onSelected: (selected) {
+                          setState(() {
+                            _isMobilization = selected ? true : null;
+                          });
+                        },
+                      ),
+                      _FormToggleChip(
+                        label: '13. Demobilization',
+                        selected: _isMobilization == false,
+                        enabled: !readOnly,
+                        onSelected: (selected) {
+                          setState(() {
+                            _isMobilization = selected ? false : null;
+                          });
+                        },
+                      ),
+                      _FormToggleChip(
+                        label: '14. Hours',
+                        selected: _rateIsHours,
+                        enabled: !readOnly,
+                        onSelected: (value) {
+                          _setRateBasis(hoursSelected: value);
+                        },
+                      ),
+                      _FormToggleChip(
+                        label: '14. Miles',
+                        selected: _rateIsMiles,
+                        enabled: !readOnly,
+                        onSelected: (value) {
+                          _setRateBasis(milesSelected: value);
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            OF297SectionCard(
+              title: 'Equipment Time 15-21',
+              child: Column(
+                children: [
+                  for (var i = 0; i < _equipmentRows.length; i++) ...[
+                    _EquipmentRowEditor(
+                      rowNumber: i + 1,
+                      row: _equipmentRows[i],
+                      readOnly: readOnly,
+                      useMiles: _usesMileage,
+                    ),
+                    if (i != _equipmentRows.length - 1)
+                      const SizedBox(height: AppSpacing.md),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            OF297SectionCard(
+              title: 'Personnel Time 22-29',
+              child: Column(
+                children: [
+                  for (var i = 0; i < _personnelRows.length; i++) ...[
+                    _PersonnelRowEditor(
+                      rowNumber: i + 1,
+                      row: _personnelRows[i],
+                      readOnly: readOnly,
+                    ),
+                    if (i != _personnelRows.length - 1)
+                      const SizedBox(height: AppSpacing.md),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            OF297SectionCard(
+              title: '30. Remarks',
+              child: OF297TextField(
+                label: 'Breakdowns, operating issues, or other information',
+                controller: _remarksController,
+                readOnly: readOnly,
+                maxLines: 4,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xl),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: readOnly ? null : _saveDraft,
+                    icon: const Icon(Icons.save_outlined),
+                    label: const Text('Save Draft'),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  // Signatures and finalization happen on the review page after
+                  // the user reviews the completed ticket.
+                  child: FilledButton.icon(
+                    onPressed: _openReview,
+                    icon: const Icon(Icons.rate_review_outlined),
+                    label: const Text('Review'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _saveDraft() async {
+    final ticket = _buildTicketFromForm();
+    await context.read<TicketsState>().updateTicket(ticket);
+
+    if (!mounted) return;
+    setState(() {
+      _ticket = ticket.copyWith(updatedAt: DateTime.now());
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('OF-297 draft saved.')),
+    );
+  }
+
+  Future<void> _openReview() async {
+    if (!_ticket!.isFinalized) {
+      await _saveDraft();
+    }
+
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => OF297ReviewPage(
+          incidentId: widget.incidentId,
+          incidentName: widget.incidentName,
+          ticketId: _ticket!.id,
+        ),
+      ),
+    );
+
+    if (!mounted) return;
+    final refreshed = context.read<TicketsState>().ticketById(_ticket!.id);
+    if (refreshed != null) {
+      setState(() => _ticket = refreshed);
+    }
+  }
+
+  bool get _usesMileage => _rateIsMiles && !_rateIsHours;
+
+  void _setRateBasis({bool? hoursSelected, bool? milesSelected}) {
+    setState(() {
+      if (hoursSelected != null) {
+        _rateIsHours = hoursSelected;
+        if (hoursSelected) {
+          _rateIsMiles = false;
+        }
+      }
+
+      if (milesSelected != null) {
+        _rateIsMiles = milesSelected;
+        if (milesSelected) {
+          _rateIsHours = false;
+        }
+      }
+
+      for (final row in _equipmentRows) {
+        row.recalculateTotal(useMiles: _usesMileage);
+      }
+    });
+  }
+
+  OF297ShiftTicket _buildTicketFromForm() {
+    final equipmentEntries = _equipmentRows
+        .map(
+          (row) => row.toEntry(
+            _uuid.v4(),
+            _parseDate,
+            _parseTime,
+            useMiles: _usesMileage,
+          ),
+        )
+        .toList();
+    final personnelEntries = _personnelRows
+        .map((row) => row.toEntry(_uuid.v4(), _parseDate, _parseTime))
+        .toList();
+    final primaryEquipmentEntry = _firstOrNull(
+      equipmentEntries.where(
+        (entry) =>
+            entry.startTime != null ||
+            entry.stopTime != null ||
+            entry.mileageStart != null ||
+            entry.mileageEnd != null,
+      ),
+    );
+    final primaryPersonnelEntry = _firstOrNull(
+      personnelEntries.where((entry) => entry.name.trim().isNotEmpty),
+    );
+
+    return _ticket!.copyWith(
+      incidentName: _incidentNameController.text.trim(),
+      incidentNumber: _incidentNumberController.text.trim(),
+      financialCode: _financialCodeController.text.trim(),
+      agreementNumber: _agreementNumberController.text.trim(),
+      resourceOrderNumber: _resourceOrderNumberController.text.trim(),
+      contractorName: _contractorNameController.text.trim(),
+      equipmentMakeModel: _equipmentMakeModelController.text.trim(),
+      equipmentType: _equipmentTypeController.text.trim(),
+      serialVinNumber: _serialVinController.text.trim(),
+      equipmentId: _equipmentIdController.text.trim(),
+      transportRetained: _transportRetained,
+      isMobilization: _isMobilization,
+      rateIsHours: _rateIsHours,
+      rateIsMiles: _rateIsMiles,
+      operatorName: primaryPersonnelEntry?.name ?? '',
+      shiftStart: _usesMileage ? null : primaryEquipmentEntry?.startTime,
+      shiftEnd: _usesMileage ? null : primaryEquipmentEntry?.stopTime,
+      equipmentEntries: equipmentEntries,
+      personnelEntries: personnelEntries,
+      remarks: _remarksController.text.trim(),
+      contractorRepresentativeName: _contractorRepController.text.trim(),
+      incidentSupervisorName: _supervisorController.text.trim(),
+      updatedAt: DateTime.now(),
+    );
+  }
+
+  T? _firstOrNull<T>(Iterable<T> values) {
+    for (final value in values) {
+      return value;
+    }
+    return null;
+  }
+
+  DateTime? _parseDate(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return null;
+    return DateTime.tryParse(trimmed) ?? _tryDateFormat(trimmed);
+  }
+
+  DateTime? _parseTime(String timeValue, String dateValue) {
+    final time = timeValue.trim();
+    if (time.isEmpty) return null;
+
+    final direct = DateTime.tryParse(time);
+    if (direct != null) return direct;
+
+    final date = _parseDate(dateValue) ?? DateTime.now();
+    final military = RegExp(r'^(\d{1,2})(\d{2})$').firstMatch(time);
+    if (military != null) {
+      final hour = int.parse(military.group(1)!);
+      final minute = int.parse(military.group(2)!);
+      if (hour > 23 || minute > 59) return null;
+
+      return DateTime(
+        date.year,
+        date.month,
+        date.day,
+        hour,
+        minute,
+      );
+    }
+
+    final parts = time.split(':');
+    if (parts.length == 2) {
+      final hour = int.tryParse(parts[0]) ?? 0;
+      final minute = int.tryParse(parts[1]) ?? 0;
+      if (hour > 23 || minute > 59) return null;
+
+      return DateTime(
+        date.year,
+        date.month,
+        date.day,
+        hour,
+        minute,
+      );
+    }
+
+    return null;
+  }
+
+  DateTime? _tryDateFormat(String value) {
+    try {
+      return _dateFormat.parseStrict(value);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _formatDate(DateTime? value) {
+    if (value == null) return '';
+    return _dateFormat.format(value);
+  }
+
+  String _formatTime(DateTime? value) {
+    if (value == null) return '';
+    return DateFormat('HHmm').format(value);
+  }
+
+  String _formatNumber(double value) {
+    if (value == 0) return '';
+    return value.toStringAsFixed(value.truncateToDouble() == value ? 0 : 2);
+  }
+
+  String _formatNullableNumber(double? value) {
+    if (value == null || value == 0) return '';
+    return value.toStringAsFixed(value.truncateToDouble() == value ? 0 : 2);
+  }
+}
+
+class _EquipmentRowControllers {
+  final date = TextEditingController();
+  final start = TextEditingController();
+  final stop = TextEditingController();
+  final total = TextEditingController();
+  final quantity = TextEditingController();
+  final type = TextEditingController();
+  final notes = TextEditingController();
+
+  void recalculateTotal({required bool useMiles}) {
+    final calculatedTotal = useMiles
+        ? _calculateMileage(start.text, stop.text)
+        : _calculateHours(start.text, stop.text);
+    total.text =
+        calculatedTotal == null ? '' : _formatNumberValue(calculatedTotal);
+  }
+
+  OF297EquipmentTimeEntry toEntry(
+      String id,
+      DateTime? Function(String value) parseDate,
+      DateTime? Function(String timeValue, String dateValue) parseTime,
+      {required bool useMiles}) {
+    final startMileage = _parseMileage(start.text);
+    final stopMileage = _parseMileage(stop.text);
+
+    return OF297EquipmentTimeEntry(
+      id: id,
+      date: parseDate(date.text),
+      startTime: useMiles ? null : parseTime(start.text, date.text),
+      stopTime: useMiles ? null : parseTime(stop.text, date.text),
+      totalHours: useMiles
+          ? 0
+          : _calculateHours(start.text, stop.text) ??
+              double.tryParse(total.text.trim()) ??
+              0,
+      mileageStart: useMiles ? startMileage : null,
+      mileageEnd: useMiles ? stopMileage : null,
+      totalMiles: useMiles
+          ? _calculateMileage(start.text, stop.text) ??
+              double.tryParse(total.text.trim()) ??
+              0
+          : 0,
+      specialRateQuantity: double.tryParse(quantity.text.trim()) ?? 0,
+      rateType: type.text.trim(),
+      notes: notes.text.trim(),
+    );
+  }
+
+  void dispose() {
+    date.dispose();
+    start.dispose();
+    stop.dispose();
+    total.dispose();
+    quantity.dispose();
+    type.dispose();
+    notes.dispose();
+  }
+}
+
+double? _calculateHours(String startValue, String stopValue) {
+  final startMinutes = _parseMilitaryMinutes(startValue);
+  final stopMinutes = _parseMilitaryMinutes(stopValue);
+  if (startMinutes == null || stopMinutes == null) {
+    return null;
+  }
+
+  var elapsedMinutes = stopMinutes - startMinutes;
+  if (elapsedMinutes < 0) {
+    elapsedMinutes += 24 * 60;
+  }
+
+  return elapsedMinutes / 60;
+}
+
+double? _calculateMileage(String startValue, String stopValue) {
+  final startMileage = _parseMileage(startValue);
+  final stopMileage = _parseMileage(stopValue);
+  if (startMileage == null ||
+      stopMileage == null ||
+      stopMileage < startMileage) {
+    return null;
+  }
+
+  return stopMileage - startMileage;
+}
+
+double? _parseMileage(String value) {
+  final text = value.trim();
+  if (text.isEmpty) return null;
+  return double.tryParse(text);
+}
+
+int? _parseMilitaryMinutes(String value) {
+  final text = value.trim();
+  if (text.length != 4) return null;
+
+  final hour = int.tryParse(text.substring(0, 2));
+  final minute = int.tryParse(text.substring(2, 4));
+  if (hour == null || minute == null || hour > 23 || minute > 59) {
+    return null;
+  }
+
+  return hour * 60 + minute;
+}
+
+String _formatHours(double hours) {
+  return _formatNumberValue(hours);
+}
+
+String _formatNumberValue(double value) {
+  return value.toStringAsFixed(value.truncateToDouble() == value ? 0 : 2);
+}
+
+class _PersonnelRowControllers {
+  final date = TextEditingController();
+  final name = TextEditingController();
+  final guaranteeStart = TextEditingController();
+  final guaranteeStop = TextEditingController();
+  final start = TextEditingController();
+  final stop = TextEditingController();
+  final total = TextEditingController();
+  final notes = TextEditingController();
+
+  void recalculateTotal() {
+    final actualHours = _calculateHours(start.text, stop.text);
+    final rowHours =
+        actualHours ?? _calculateHours(guaranteeStart.text, guaranteeStop.text);
+    total.text = rowHours == null ? '' : _formatHours(rowHours);
+  }
+
+  OF297PersonnelTimeEntry toEntry(
+    String id,
+    DateTime? Function(String value) parseDate,
+    DateTime? Function(String timeValue, String dateValue) parseTime,
+  ) {
+    return OF297PersonnelTimeEntry(
+      id: id,
+      date: parseDate(date.text),
+      name: name.text.trim(),
+      guaranteeStartTime: parseTime(guaranteeStart.text, date.text),
+      guaranteeStopTime: parseTime(guaranteeStop.text, date.text),
+      startTime: parseTime(start.text, date.text),
+      stopTime: parseTime(stop.text, date.text),
+      totalHours: _calculateHours(start.text, stop.text) ??
+          _calculateHours(guaranteeStart.text, guaranteeStop.text) ??
+          double.tryParse(total.text.trim()) ??
+          0,
+      notes: notes.text.trim(),
+    );
+  }
+
+  void dispose() {
+    date.dispose();
+    name.dispose();
+    guaranteeStart.dispose();
+    guaranteeStop.dispose();
+    start.dispose();
+    stop.dispose();
+    total.dispose();
+    notes.dispose();
+  }
+}
+
+class _EquipmentRowEditor extends StatelessWidget {
+  final int rowNumber;
+  final _EquipmentRowControllers row;
+  final bool readOnly;
+  final bool useMiles;
+
+  const _EquipmentRowEditor({
+    required this.rowNumber,
+    required this.row,
+    required this.readOnly,
+    required this.useMiles,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ExpansionTile(
+      tilePadding: EdgeInsets.zero,
+      title: Text('Equipment row $rowNumber'),
+      children: [
+        _ResponsiveFields(
+          children: [
+            _DatePickerTextField(
+              label: '15. Date',
+              controller: row.date,
+              readOnly: readOnly,
+            ),
+            if (useMiles)
+              _MileageField(
+                label: '16. Start Mileage',
+                controller: row.start,
+                readOnly: readOnly,
+                onMileageChanged: () => row.recalculateTotal(useMiles: true),
+              )
+            else
+              _MilitaryTimeField(
+                label: '16. Start',
+                controller: row.start,
+                readOnly: readOnly,
+                onTimeChanged: () => row.recalculateTotal(useMiles: false),
+              ),
+            if (useMiles)
+              _MileageField(
+                label: '17. Stop Mileage',
+                controller: row.stop,
+                readOnly: readOnly,
+                onMileageChanged: () => row.recalculateTotal(useMiles: true),
+              )
+            else
+              _MilitaryTimeField(
+                label: '17. Stop',
+                controller: row.stop,
+                readOnly: readOnly,
+                onTimeChanged: () => row.recalculateTotal(useMiles: false),
+              ),
+            OF297TextField(
+              label: useMiles ? '18. Total Miles' : '18. Total Hours',
+              controller: row.total,
+              readOnly: true,
+              keyboardType: TextInputType.number,
+            ),
+            OF297TextField(
+              label: '19. Quantity',
+              controller: row.quantity,
+              readOnly: readOnly,
+              keyboardType: TextInputType.number,
+            ),
+            OF297TextField(
+              label: '20. Type',
+              controller: row.type,
+              readOnly: readOnly,
+            ),
+            OF297TextField(
+              label: '21. Travel/Other Remarks',
+              controller: row.notes,
+              readOnly: readOnly,
+              maxLines: 2,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _PersonnelRowEditor extends StatelessWidget {
+  final int rowNumber;
+  final _PersonnelRowControllers row;
+  final bool readOnly;
+
+  const _PersonnelRowEditor({
+    required this.rowNumber,
+    required this.row,
+    required this.readOnly,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ExpansionTile(
+      tilePadding: EdgeInsets.zero,
+      title: Text('Personnel row $rowNumber'),
+      children: [
+        _ResponsiveFields(
+          children: [
+            _DatePickerTextField(
+              label: '22. Date',
+              controller: row.date,
+              readOnly: readOnly,
+            ),
+            OF297TextField(
+              label: '23. Operator Name',
+              controller: row.name,
+              readOnly: readOnly,
+            ),
+            _MilitaryTimeField(
+              label: '24. Start',
+              controller: row.guaranteeStart,
+              readOnly: readOnly,
+              onTimeChanged: row.recalculateTotal,
+            ),
+            _MilitaryTimeField(
+              label: '25. Stop',
+              controller: row.guaranteeStop,
+              readOnly: readOnly,
+              onTimeChanged: row.recalculateTotal,
+            ),
+            _MilitaryTimeField(
+              label: '26. Start',
+              controller: row.start,
+              readOnly: readOnly,
+              onTimeChanged: row.recalculateTotal,
+            ),
+            _MilitaryTimeField(
+              label: '27. Stop',
+              controller: row.stop,
+              readOnly: readOnly,
+              onTimeChanged: row.recalculateTotal,
+            ),
+            OF297TextField(
+              label: '28. Total',
+              controller: row.total,
+              readOnly: true,
+              keyboardType: TextInputType.number,
+            ),
+            OF297TextField(
+              label: '29. Travel/Other Remarks',
+              controller: row.notes,
+              readOnly: readOnly,
+              maxLines: 2,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _DatePickerTextField extends StatelessWidget {
+  final String label;
+  final TextEditingController controller;
+  final bool readOnly;
+
+  const _DatePickerTextField({
+    required this.label,
+    required this.controller,
+    required this.readOnly,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      readOnly: true,
+      onTap: readOnly ? null : () => _pickDate(context),
+      decoration: InputDecoration(
+        labelText: label,
+        suffixIcon: const Icon(Icons.calendar_today_outlined),
+      ),
+    );
+  }
+
+  Future<void> _pickDate(BuildContext context) async {
+    final formatter = DateFormat('MM/dd/yyyy');
+    DateTime? existing;
+    try {
+      existing = formatter.parseStrict(controller.text);
+    } catch (_) {
+      existing = null;
+    }
+
+    final selectedDate = await showDatePicker(
+      context: context,
+      initialDate: existing ?? DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+    );
+
+    if (selectedDate == null) return;
+    controller.text = formatter.format(selectedDate);
+  }
+}
+
+class _MilitaryTimeField extends StatelessWidget {
+  final String label;
+  final TextEditingController controller;
+  final bool readOnly;
+  final VoidCallback? onTimeChanged;
+
+  const _MilitaryTimeField({
+    required this.label,
+    required this.controller,
+    required this.readOnly,
+    this.onTimeChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<TextEditingValue>(
+      valueListenable: controller,
+      builder: (context, value, _) {
+        final errorText = _timeError(value.text);
+
+        return Focus(
+          onFocusChange: (hasFocus) {
+            if (!hasFocus) {
+              _normalizeTime();
+            }
+          },
+          child: TextField(
+            controller: controller,
+            readOnly: readOnly,
+            enabled: !readOnly,
+            textAlign: TextAlign.center,
+            keyboardType: TextInputType.number,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(4),
+            ],
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontFeatures: [FontFeature.tabularFigures()],
+              letterSpacing: 1.5,
+            ),
+            decoration: InputDecoration(
+              labelText: label,
+              hintText: 'HHMM',
+              helperText: 'Military time',
+              errorText: errorText,
+              counterText: '',
+              prefixIcon: const Icon(Icons.schedule_outlined),
+            ),
+            maxLength: 4,
+            onEditingComplete: _normalizeTime,
+            onChanged: (_) => onTimeChanged?.call(),
+          ),
+        );
+      },
+    );
+  }
+
+  String? _timeError(String value) {
+    if (value.isEmpty || value.length < 4) {
+      return null;
+    }
+
+    final hour = int.tryParse(value.substring(0, 2));
+    final minute = int.tryParse(value.substring(2, 4));
+    if (hour == null || minute == null || hour > 23 || minute > 59) {
+      return 'Use 0000-2359';
+    }
+
+    return null;
+  }
+
+  void _normalizeTime() {
+    final raw = controller.text.trim();
+    if (raw.isEmpty) return;
+
+    final padded = raw.padLeft(4, '0');
+    if (_timeError(padded) == null) {
+      controller.text = padded;
+      onTimeChanged?.call();
+    }
+  }
+}
+
+class _MileageField extends StatelessWidget {
+  final String label;
+  final TextEditingController controller;
+  final bool readOnly;
+  final VoidCallback? onMileageChanged;
+
+  const _MileageField({
+    required this.label,
+    required this.controller,
+    required this.readOnly,
+    this.onMileageChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      readOnly: readOnly,
+      enabled: !readOnly,
+      textAlign: TextAlign.center,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      inputFormatters: [
+        FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+      ],
+      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+        fontFeatures: [FontFeature.tabularFigures()],
+      ),
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: '0',
+        helperText: 'Odometer/mileage',
+        prefixIcon: const Icon(Icons.speed_outlined),
+      ),
+      onChanged: (_) => onMileageChanged?.call(),
+    );
+  }
+}
+
+class _FormToggleChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final bool enabled;
+  final ValueChanged<bool> onSelected;
+
+  const _FormToggleChip({
+    required this.label,
+    required this.selected,
+    required this.enabled,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 156,
+      child: FilterChip(
+        label: Center(child: Text(label, textAlign: TextAlign.center)),
+        selected: selected,
+        onSelected: enabled ? onSelected : null,
+      ),
+    );
+  }
+}
+
+class _ResponsiveFields extends StatelessWidget {
+  final List<Widget> children;
+
+  const _ResponsiveFields({
+    required this.children,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 760 ? 2 : 1;
+        final spacing = columns == 1 ? 0.0 : AppSpacing.md;
+        final itemWidth =
+            (constraints.maxWidth - spacing) / columns.clamp(1, 2);
+
+        return Wrap(
+          spacing: AppSpacing.md,
+          runSpacing: AppSpacing.md,
+          children: children
+              .map(
+                (child) => SizedBox(
+                  width: columns == 1 ? double.infinity : itemWidth,
+                  child: child,
+                ),
+              )
+              .toList(),
+        );
+      },
+    );
+  }
+}

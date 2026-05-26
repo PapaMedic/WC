@@ -27,79 +27,85 @@ class TopoDashboardCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(minHeight: 178),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(26),
-        color: cardBg,
-        border: Border.all(color: border),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(26),
-        child: Stack(
-          children: [
-            const Positioned.fill(
-              child: CustomPaint(
-                painter: _TopoContourPainter(),
-              ),
-            ),
-
-            // Dark left-side readability shield.
-            Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
-                    colors: [
-                      const Color(0xFF101611).withOpacity(0.96),
-                      const Color(0xFF101611).withOpacity(0.88),
-                      const Color(0xFF101611).withOpacity(0.72),
-                      const Color(0xFF101611).withOpacity(0.48),
-                      const Color(0xFF101611).withOpacity(0.24),
-                      TopoDashboardCard.accent.withOpacity(0.018),
-                    ],
-                    stops: const [0.0, 0.25, 0.48, 0.68, 0.86, 1.0],
+    return RepaintBoundary(
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 178),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(26),
+          color: cardBg,
+          border: Border.all(color: border),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(26),
+          child: Stack(
+            children: [
+              const Positioned.fill(
+                child: RepaintBoundary(
+                  child: CustomPaint(
+                    isComplex: true,
+                    willChange: false,
+                    painter: _TopoContourPainter(),
                   ),
                 ),
               ),
-            ),
 
-            Padding(
-              padding: const EdgeInsets.all(18),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(icon, color: accent, size: 21),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          title.toUpperCase(),
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: muted,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 1.1,
+              // Dark left-side readability shield.
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                      colors: [
+                        const Color(0xFF101611).withValues(alpha: 0.96),
+                        const Color(0xFF101611).withValues(alpha: 0.88),
+                        const Color(0xFF101611).withValues(alpha: 0.72),
+                        const Color(0xFF101611).withValues(alpha: 0.48),
+                        const Color(0xFF101611).withValues(alpha: 0.24),
+                        TopoDashboardCard.accent.withValues(alpha: 0.018),
+                      ],
+                      stops: const [0.0, 0.25, 0.48, 0.68, 0.86, 1.0],
+                    ),
+                  ),
+                ),
+              ),
+
+              Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(icon, color: accent, size: 21),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            title.toUpperCase(),
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: muted,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.1,
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      _StatusPill(label: accentLabel),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  DefaultTextStyle(
-                    style: const TextStyle(color: text),
-                    child: child,
-                  ),
-                ],
+                        const SizedBox(width: 8),
+                        _StatusPill(label: accentLabel),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    DefaultTextStyle(
+                      style: const TextStyle(color: text),
+                      child: child,
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -119,10 +125,10 @@ class _StatusPill extends StatelessWidget {
       constraints: const BoxConstraints(maxWidth: 125),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: TopoDashboardCard.accent.withOpacity(0.13),
+        color: TopoDashboardCard.accent.withValues(alpha: 0.13),
         borderRadius: BorderRadius.circular(999),
         border: Border.all(
-          color: TopoDashboardCard.accent.withOpacity(0.45),
+          color: TopoDashboardCard.accent.withValues(alpha: 0.45),
         ),
       ),
       child: Text(
@@ -230,7 +236,9 @@ class _TopoContourPainter extends CustomPainter {
 
     if (isIndexLine) {
       final glowPaint = Paint()
-        ..color = accentLineColor.withOpacity(ui.lerpDouble(0.0, 0.025, fade)!)
+        ..color = accentLineColor.withValues(
+          alpha: ui.lerpDouble(0.0, 0.025, fade)!,
+        )
         ..strokeWidth = 3.2
         ..style = PaintingStyle.stroke
         ..strokeCap = StrokeCap.round
@@ -240,7 +248,8 @@ class _TopoContourPainter extends CustomPainter {
     }
 
     final paint = Paint()
-      ..color = (isIndexLine ? accentLineColor : lineColor).withOpacity(lineOpacity)
+      ..color = (isIndexLine ? accentLineColor : lineColor)
+          .withValues(alpha: lineOpacity)
       ..strokeWidth = isIndexLine ? 1.15 : 0.85
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;

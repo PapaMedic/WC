@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 
+import 'package:wildland_companion_v2/app/app_router.dart';
 import 'package:wildland_companion_v2/core/widgets/topo_dashboard_card.dart';
 import 'package:wildland_companion_v2/features/apparatus/data/apparatus_repository.dart';
 import 'package:wildland_companion_v2/features/apparatus/models/apparatus.dart';
@@ -10,6 +12,7 @@ import 'package:wildland_companion_v2/features/incidents/data/incident_repositor
 import 'package:wildland_companion_v2/features/incidents/models/incident.dart';
 import 'package:wildland_companion_v2/features/personnel/data/personnel_repository.dart';
 import 'package:wildland_companion_v2/features/personnel/models/personnel.dart';
+import 'package:wildland_companion_v2/features/tickets/state/tickets_state.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -51,9 +54,11 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   Future<void> _loadDashboardData() async {
+    final ticketsState = context.read<TicketsState>();
     final apparatus = await _apparatusRepository.getSelectedApparatus();
     final incident = await _incidentRepository.getSelectedIncident();
     final personnel = await _personnelRepository.getAssignedPersonnel();
+    await ticketsState.loadTickets();
 
     if (!mounted) return;
 
@@ -78,6 +83,20 @@ class _DashboardPageState extends State<DashboardPage> {
   Widget build(BuildContext context) {
     final dateText = DateFormat('EEEE, MMM d, yyyy').format(_now);
     final timeText = DateFormat('HH:mm').format(_now);
+    final ticketsState = context.watch<TicketsState>();
+    final selectedIncident = _selectedIncident;
+    final selectedIncidentId = selectedIncident?.id;
+    // OF-297 ticket stats are scoped to the currently selected incident. They
+    // do not count tickets from closed or non-selected incidents.
+    final openDraftsCount = selectedIncidentId == null
+        ? 0
+        : ticketsState.draftCountForIncident(selectedIncidentId);
+    final finalizedTicketsCount = selectedIncidentId == null
+        ? 0
+        : ticketsState.finalizedCountForIncident(selectedIncidentId);
+    final selectedIncidentLabel = selectedIncident?.incidentName.isEmpty ?? true
+        ? 'Select an incident'
+        : selectedIncident!.incidentName;
 
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
@@ -128,10 +147,31 @@ class _DashboardPageState extends State<DashboardPage> {
 
             const SizedBox(height: 14),
 
+            _TicketCountsCard(
+              openDraftsCount: openDraftsCount,
+              finalizedTicketsCount: finalizedTicketsCount,
+              selectedIncidentLabel: selectedIncidentLabel,
+              hasSelectedIncident: selectedIncidentId != null,
+              onTap: selectedIncidentId == null
+                  ? null
+                  : () {
+                      // TODO: add a TicketsPage deep link that opens the
+                      // selected incident directly. For now this opens the
+                      // OF-297 tickets area without changing existing routing.
+                      AppRouter.navigate(context, 4);
+                    },
+            ),
+
+            const SizedBox(height: 14),
+
+            // TODO: After the Weather module is built, add a tactical weather
+            // snapshot card here.
+
             TopoDashboardCard(
               icon: Icons.fire_truck,
               title: 'Selected Apparatus',
-              accentLabel: _selectedApparatus == null ? 'Not Selected' : 'Ready',
+              accentLabel:
+                  _selectedApparatus == null ? 'Not Selected' : 'Ready',
               child: _selectedApparatus == null
                   ? const _EmptyDashboardText(
                       message: 'No apparatus selected.',
@@ -214,6 +254,125 @@ class _DashboardPageState extends State<DashboardPage> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _TicketCountsCard extends StatelessWidget {
+  final int openDraftsCount;
+  final int finalizedTicketsCount;
+  final String selectedIncidentLabel;
+  final bool hasSelectedIncident;
+  final VoidCallback? onTap;
+
+  const _TicketCountsCard({
+    required this.openDraftsCount,
+    required this.finalizedTicketsCount,
+    required this.selectedIncidentLabel,
+    required this.hasSelectedIncident,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final card = TopoDashboardCard(
+      icon: Icons.receipt_long_outlined,
+      title: 'OF-297 Tickets',
+      accentLabel: hasSelectedIncident ? 'Selected Incident' : 'Not Selected',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            hasSelectedIncident ? selectedIncidentLabel : 'Select an incident',
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: TopoDashboardCard.text,
+                  fontWeight: FontWeight.w800,
+                ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _TicketCountMetric(
+                  label: 'Open Drafts',
+                  value: hasSelectedIncident ? openDraftsCount.toString() : '0',
+                  icon: Icons.edit_note_outlined,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: _TicketCountMetric(
+                  label: 'Finalized',
+                  value: hasSelectedIncident
+                      ? finalizedTicketsCount.toString()
+                      : '0',
+                  icon: Icons.verified_outlined,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    if (onTap == null) {
+      return card;
+    }
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(26),
+      child: card,
+    );
+  }
+}
+
+class _TicketCountMetric extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+
+  const _TicketCountMetric({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(
+          icon,
+          color: TopoDashboardCard.accent,
+          size: 24,
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                value,
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      color: TopoDashboardCard.text,
+                      fontWeight: FontWeight.w900,
+                    ),
+              ),
+              Text(
+                label,
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: TopoDashboardCard.muted,
+                    ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
