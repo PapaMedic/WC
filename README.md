@@ -11,6 +11,5 @@ All rights reserved by owner.
 • Operational Dashboard
 • Incident Filing
 • OF297 form creation
-• Fire Weather and Calculations
 • Interactive Fire Map
 • Department/Organization Grouping

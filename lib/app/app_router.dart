@@ -5,8 +5,7 @@ import 'package:wildland_companion_v2/features/personnel/presentation/personnel_
 import 'package:wildland_companion_v2/features/apparatus/presentation/apparatus_page.dart';
 import 'package:wildland_companion_v2/features/incidents/presentation/incidents_page.dart';
 import 'package:wildland_companion_v2/features/tickets/presentation/tickets_page.dart';
-import 'package:wildland_companion_v2/features/fire_map/presentation/fire_map_page.dart';
-import 'package:wildland_companion_v2/features/weather/presentation/weather_page.dart';
+import 'package:wildland_companion_v2/features/fire_map/pages/fire_map_page.dart';
 import 'package:wildland_companion_v2/features/field_calculator/presentation/field_calculator_page.dart';
 
 class AppRouter extends StatefulWidget {
@@ -70,11 +69,6 @@ class _AppRouterState extends State<AppRouter> {
         subtitle = 'Tactical GIS & Mapping';
         break;
       case 6:
-        body = const WeatherPage();
-        title = 'Weather';
-        subtitle = 'Spot Forecasts & Conditions';
-        break;
-      case 7:
         body = const FieldCalculatorPage();
         title = 'Field Calculator';
         subtitle = 'Tactical Utilities & Conversions';

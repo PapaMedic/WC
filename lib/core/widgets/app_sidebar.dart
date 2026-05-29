@@ -75,13 +75,6 @@ class AppSidebar extends StatelessWidget {
                 ),
                 _NavItem(
                   index: 6,
-                  title: 'Weather',
-                  icon: Icons.cloud_outlined,
-                  currentIndex: currentIndex,
-                  onNavigate: onNavigate,
-                ),
-                _NavItem(
-                  index: 7,
                   title: 'Field Calculator',
                   icon: Icons.calculate_outlined,
                   currentIndex: currentIndex,

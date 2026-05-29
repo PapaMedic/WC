@@ -37,6 +37,20 @@ class IncidentRepository {
     await saveAllIncidents(incidents);
   }
 
+  Future<Incident?> findBySourceIrwinId(String irwinId) async {
+    final normalized = _normalizeIrwinId(irwinId);
+    if (normalized.isEmpty) return null;
+
+    final incidents = await getAllIncidents();
+    for (final incident in incidents) {
+      if (_normalizeIrwinId(incident.sourceIrwinId ?? '') == normalized) {
+        return incident;
+      }
+    }
+
+    return null;
+  }
+
   Future<void> updateIncident(Incident updatedIncident) async {
     final incidents = await getAllIncidents();
 
@@ -99,26 +113,30 @@ class IncidentRepository {
   }
 
   Future<void> selectIncident(String id) async {
-  final incidents = await getAllIncidents();
+    final incidents = await getAllIncidents();
 
-  final updatedList = incidents.map((incident) {
-    return incident.copyWith(
-      isSelected: incident.id == id,
-    );
-  }).toList();
+    final updatedList = incidents.map((incident) {
+      return incident.copyWith(
+        isSelected: incident.id == id,
+      );
+    }).toList();
 
-  await saveAllIncidents(updatedList);
-}
-
-Future<Incident?> getSelectedIncident() async {
-  final incidents = await getAllIncidents();
-
-  try {
-    return incidents.firstWhere(
-      (incident) => incident.isSelected && incident.isActive,
-    );
-  } catch (_) {
-    return null;
+    await saveAllIncidents(updatedList);
   }
-}
+
+  Future<Incident?> getSelectedIncident() async {
+    final incidents = await getAllIncidents();
+
+    try {
+      return incidents.firstWhere(
+        (incident) => incident.isSelected && incident.isActive,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _normalizeIrwinId(String value) {
+    return value.trim().toLowerCase().replaceAll('{', '').replaceAll('}', '');
+  }
 }

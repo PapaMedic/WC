@@ -164,9 +164,6 @@ class _DashboardPageState extends State<DashboardPage> {
 
             const SizedBox(height: 14),
 
-            // TODO: After the Weather module is built, add a tactical weather
-            // snapshot card here.
-
             TopoDashboardCard(
               icon: Icons.fire_truck,
               title: 'Selected Apparatus',

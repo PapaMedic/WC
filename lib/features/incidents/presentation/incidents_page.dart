@@ -17,9 +17,6 @@ class _IncidentsPageState extends State<IncidentsPage> {
 
   List<Incident> _incidents = [];
   bool _isLoading = true;
-
-  // false = show active incidents
-  // true = show closed incidents
   bool _showClosed = false;
 
   @override
@@ -28,10 +25,8 @@ class _IncidentsPageState extends State<IncidentsPage> {
     _loadIncidents();
   }
 
-  // Loads all incidents from local storage.
   Future<void> _loadIncidents() async {
     final incidents = await _repository.getAllIncidents();
-
     if (!mounted) return;
 
     setState(() {
@@ -40,106 +35,193 @@ class _IncidentsPageState extends State<IncidentsPage> {
     });
   }
 
-  // Opens the add incident dialog and saves a new incident.
   Future<void> _addIncident() async {
-    final result = await showDialog<Incident>(
-      context: context,
-      builder: (context) {
-        final incidentNameController = TextEditingController();
-        final incidentNumberController = TextEditingController();
-        final resourceOrderController = TextEditingController();
-        final financialCodeController = TextEditingController();
-
-        return AlertDialog(
-          title: const Text('Add Incident'),
-          content: SingleChildScrollView(
-            child: Column(
-              children: [
-                TextField(
-                  controller: incidentNameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Incident Name',
-                  ),
-                ),
-                TextField(
-                  controller: incidentNumberController,
-                  decoration: const InputDecoration(
-                    labelText: 'Incident Number',
-                  ),
-                ),
-                TextField(
-                  controller: resourceOrderController,
-                  decoration: const InputDecoration(
-                    labelText: 'Resource Order Number',
-                  ),
-                ),
-                TextField(
-                  controller: financialCodeController,
-                  decoration: const InputDecoration(
-                    labelText: 'Financial Code',
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final incident = Incident(
-                  id: _uuid.v4(),
-                  incidentName: incidentNameController.text.trim(),
-                  incidentNumber: incidentNumberController.text.trim(),
-                  resourceOrderNumber: resourceOrderController.text.trim(),
-                  financialCode: financialCodeController.text.trim(),
-                  createdAt: DateTime.now(),
-                );
-
-                Navigator.pop(context, incident);
-              },
-              child: const Text('Save'),
-            ),
-          ],
-        );
-      },
-    );
-
+    final result = await _showIncidentEditor();
     if (result == null) return;
 
     await _repository.addIncident(result);
     await _loadIncidents();
   }
 
-  // Selects the current active incident.
-  // Only one incident should be selected at a time.
+  Future<void> _editIncident(Incident incident) async {
+    final result = await _showIncidentEditor(incident: incident);
+    if (result == null) return;
+
+    await _repository.updateIncident(result);
+    await _loadIncidents();
+  }
+
   Future<void> _selectIncident(String id) async {
     await _repository.selectIncident(id);
     await _loadIncidents();
   }
 
-  // Changes an incident from Active to Closed.
-  // Repository should also unselect it when closed.
   Future<void> _closeIncident(String id) async {
     await _repository.closeIncident(id);
     await _loadIncidents();
   }
 
-  // Changes a closed incident back to Active.
   Future<void> _reopenIncident(String id) async {
     await _repository.reopenIncident(id);
     await _loadIncidents();
   }
 
-  // Deletes the incident from local storage.
   Future<void> _deleteIncident(String id) async {
     await _repository.deleteIncident(id);
     await _loadIncidents();
   }
 
-  // Opens bottom sheet with incident details and actions.
+  Future<Incident?> _showIncidentEditor({Incident? incident}) {
+    return showDialog<Incident>(
+      context: context,
+      builder: (context) {
+        final incidentNameController = TextEditingController(
+          text: incident?.incidentName ?? '',
+        );
+        final incidentNumberController = TextEditingController(
+          text: incident?.incidentNumber ?? '',
+        );
+        final acresController = TextEditingController(
+          text: incident?.acres ?? '',
+        );
+        final containmentController = TextEditingController(
+          text: incident?.containmentPercent ?? '',
+        );
+        final jurisdictionController = TextEditingController(
+          text: incident?.jurisdiction ?? '',
+        );
+        final agencyController = TextEditingController(
+          text: incident?.agency ?? '',
+        );
+        final resourceOrderController = TextEditingController(
+          text: incident?.resourceOrderNumber ?? '',
+        );
+        final financialCodeController = TextEditingController(
+          text: incident?.financialCode ?? '',
+        );
+        final notesController = TextEditingController(
+          text: incident?.notes ?? '',
+        );
+        var status = incident?.status ?? 'Active';
+
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Text(incident == null ? 'Add Incident' : 'Edit Incident'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: incidentNameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Incident Name',
+                      ),
+                    ),
+                    TextField(
+                      controller: incidentNumberController,
+                      decoration: const InputDecoration(
+                        labelText: 'Incident Number',
+                      ),
+                    ),
+                    DropdownButtonFormField<String>(
+                      initialValue: status,
+                      decoration: const InputDecoration(labelText: 'Status'),
+                      items: const [
+                        DropdownMenuItem(
+                            value: 'Active', child: Text('Active')),
+                        DropdownMenuItem(
+                            value: 'Closed', child: Text('Closed')),
+                      ],
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setDialogState(() => status = value);
+                      },
+                    ),
+                    TextField(
+                      controller: acresController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: 'Acres'),
+                    ),
+                    TextField(
+                      controller: containmentController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Containment %',
+                      ),
+                    ),
+                    TextField(
+                      controller: jurisdictionController,
+                      decoration: const InputDecoration(
+                        labelText: 'Jurisdiction / Unit',
+                      ),
+                    ),
+                    TextField(
+                      controller: agencyController,
+                      decoration: const InputDecoration(labelText: 'Agency'),
+                    ),
+                    TextField(
+                      controller: resourceOrderController,
+                      decoration: const InputDecoration(
+                        labelText: 'Resource Order Number',
+                      ),
+                    ),
+                    TextField(
+                      controller: financialCodeController,
+                      decoration: const InputDecoration(
+                        labelText: 'Financial Code',
+                      ),
+                    ),
+                    TextField(
+                      controller: notesController,
+                      minLines: 3,
+                      maxLines: 6,
+                      decoration: const InputDecoration(
+                        labelText: 'Notes / Details',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    final updated = Incident(
+                      id: incident?.id ?? _uuid.v4(),
+                      incidentName: incidentNameController.text.trim(),
+                      incidentNumber: incidentNumberController.text.trim(),
+                      resourceOrderNumber: resourceOrderController.text.trim(),
+                      financialCode: financialCodeController.text.trim(),
+                      status: status,
+                      isSelected:
+                          status == 'Active' && (incident?.isSelected ?? false),
+                      createdAt: incident?.createdAt ?? DateTime.now(),
+                      source: incident?.source,
+                      sourceIrwinId: incident?.sourceIrwinId,
+                      sourceStatus: incident?.sourceStatus,
+                      acres: acresController.text.trim(),
+                      containmentPercent: containmentController.text.trim(),
+                      jurisdiction: jurisdictionController.text.trim(),
+                      agency: agencyController.text.trim(),
+                      notes: notesController.text.trim(),
+                    );
+
+                    Navigator.pop(context, updated);
+                  },
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   void _openIncidentDetails(Incident incident) {
     showModalBottomSheet(
       context: context,
@@ -156,31 +238,59 @@ class _IncidentsPageState extends State<IncidentsPage> {
                     : incident.incidentName,
                 style: Theme.of(context).textTheme.headlineSmall,
               ),
-
-              _DetailRow(
-                label: 'Incident Number',
-                value: incident.incidentNumber,
-              ),
-              _DetailRow(
-                label: 'Resource Order Number',
-                value: incident.resourceOrderNumber,
-              ),
-              _DetailRow(
-                label: 'Financial Code',
-                value: incident.financialCode,
-              ),
-              _DetailRow(
-                label: 'Status',
-                value: incident.status,
-              ),
+              if (incident.incidentNumber.isNotEmpty)
+                _DetailRow(
+                  label: 'Incident Number',
+                  value: incident.incidentNumber,
+                ),
+              _DetailRow(label: 'Status', value: incident.status),
               _DetailRow(
                 label: 'Current Incident',
                 value: incident.isSelected ? 'Yes' : 'No',
               ),
-
+              if ((incident.acres ?? '').isNotEmpty)
+                _DetailRow(label: 'Acres', value: incident.acres ?? ''),
+              if ((incident.containmentPercent ?? '').isNotEmpty)
+                _DetailRow(
+                  label: 'Containment',
+                  value: '${incident.containmentPercent}%',
+                ),
+              if ((incident.jurisdiction ?? '').isNotEmpty)
+                _DetailRow(
+                  label: 'Jurisdiction / Unit',
+                  value: incident.jurisdiction ?? '',
+                ),
+              if ((incident.agency ?? '').isNotEmpty)
+                _DetailRow(label: 'Agency', value: incident.agency ?? ''),
+              if (incident.resourceOrderNumber.isNotEmpty)
+                _DetailRow(
+                  label: 'Resource Order Number',
+                  value: incident.resourceOrderNumber,
+                ),
+              if (incident.financialCode.isNotEmpty)
+                _DetailRow(
+                  label: 'Financial Code',
+                  value: incident.financialCode,
+                ),
+              if ((incident.source ?? '').isNotEmpty)
+                _DetailRow(label: 'Source', value: incident.source ?? ''),
+              if ((incident.notes ?? '').isNotEmpty)
+                Text(
+                  incident.notes!,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
               const Divider(),
-
-              // Active incidents can be selected and closed.
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _editIncident(incident);
+                  },
+                  icon: const Icon(Icons.edit_outlined),
+                  label: const Text('Edit Incident'),
+                ),
+              ),
               if (incident.isActive) ...[
                 SizedBox(
                   width: double.infinity,
@@ -205,8 +315,6 @@ class _IncidentsPageState extends State<IncidentsPage> {
                   ),
                 ),
               ],
-
-              // Closed incidents can be reopened.
               if (incident.isClosed)
                 SizedBox(
                   width: double.infinity,
@@ -219,8 +327,6 @@ class _IncidentsPageState extends State<IncidentsPage> {
                     label: const Text('Reopen Incident'),
                   ),
                 ),
-
-              // Delete works for both active and closed incidents.
               SizedBox(
                 width: double.infinity,
                 child: TextButton.icon(
@@ -239,11 +345,34 @@ class _IncidentsPageState extends State<IncidentsPage> {
     );
   }
 
+  String _summaryForIncident(Incident incident) {
+    final lines = <String>[];
+    if (incident.incidentNumber.isNotEmpty) {
+      lines.add('Incident #: ${incident.incidentNumber}');
+    }
+    if ((incident.acres ?? '').isNotEmpty) {
+      lines.add('Acres: ${incident.acres}');
+    }
+    if ((incident.containmentPercent ?? '').isNotEmpty) {
+      lines.add('Containment: ${incident.containmentPercent}%');
+    }
+    final jurisdictionAgency = [
+      incident.jurisdiction,
+      incident.agency,
+    ].where((value) => (value ?? '').isNotEmpty).join(' / ');
+    if (jurisdictionAgency.isNotEmpty) {
+      lines.add(jurisdictionAgency);
+    }
+    if (lines.isEmpty) return 'No local incident details entered.';
+    return lines.join('\n');
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Filters the list based on the selected Active/Closed tab.
     final filteredIncidents = _incidents
-        .where((incident) => _showClosed ? incident.isClosed : incident.isActive)
+        .where(
+          (incident) => _showClosed ? incident.isClosed : incident.isActive,
+        )
         .toList();
 
     if (_isLoading) {
@@ -253,7 +382,6 @@ class _IncidentsPageState extends State<IncidentsPage> {
     return Scaffold(
       body: Column(
         children: [
-          // Active / Closed filter.
           Padding(
             padding: const EdgeInsets.all(16),
             child: SegmentedButton<bool>(
@@ -277,8 +405,6 @@ class _IncidentsPageState extends State<IncidentsPage> {
               },
             ),
           ),
-
-          // Incident list.
           Expanded(
             child: filteredIncidents.isEmpty
                 ? Center(
@@ -296,7 +422,6 @@ class _IncidentsPageState extends State<IncidentsPage> {
 
                       return Card(
                         child: ListTile(
-                          // Checkmark means this is the current selected incident.
                           leading: Icon(
                             incident.isSelected
                                 ? Icons.check_circle
@@ -304,29 +429,27 @@ class _IncidentsPageState extends State<IncidentsPage> {
                                     ? Icons.local_fire_department
                                     : Icons.archive_outlined,
                           ),
-
                           title: Text(
                             incident.incidentName.isEmpty
                                 ? 'Unnamed Incident'
                                 : incident.incidentName,
+                            style: Theme.of(context).textTheme.titleMedium,
                           ),
-
-                          subtitle: Text(
-                            'Incident #: ${incident.incidentNumber}\n'
-                            'Resource Order: ${incident.resourceOrderNumber}\n'
-                            'Financial Code: ${incident.financialCode}',
-                          ),
-
+                          subtitle: Text(_summaryForIncident(incident)),
                           isThreeLine: true,
-
-                          // Three-dot menu opens details/actions.
-                          trailing: IconButton(
-                            icon: const Icon(Icons.more_vert),
-                            onPressed: () => _openIncidentDetails(incident),
+                          trailing: Wrap(
+                            spacing: 2,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.edit_outlined),
+                                onPressed: () => _editIncident(incident),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.more_vert),
+                                onPressed: () => _openIncidentDetails(incident),
+                              ),
+                            ],
                           ),
-
-                          // Tapping active incident selects it.
-                          // Tapping closed incident opens details.
                           onTap: incident.isActive
                               ? () => _selectIncident(incident.id)
                               : () => _openIncidentDetails(incident),
@@ -337,8 +460,6 @@ class _IncidentsPageState extends State<IncidentsPage> {
           ),
         ],
       ),
-
-      // Adds a new incident.
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _addIncident,
         icon: const Icon(Icons.add),
@@ -348,7 +469,6 @@ class _IncidentsPageState extends State<IncidentsPage> {
   }
 }
 
-// Small reusable row for bottom sheet details.
 class _DetailRow extends StatelessWidget {
   final String label;
   final String value;
