@@ -67,6 +67,28 @@ class _IncidentsPageState extends State<IncidentsPage> {
   }
 
   Future<void> _deleteIncident(String id) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Archive Incident?'),
+        content: const Text(
+          'Deleting this incident will archive the incident but preserve all associated tickets. Tickets will remain available under Deleted Incident Tickets.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Archive'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
     await _repository.deleteIncident(id);
     await _loadIncidents();
   }
@@ -81,142 +103,77 @@ class _IncidentsPageState extends State<IncidentsPage> {
         final incidentNumberController = TextEditingController(
           text: incident?.incidentNumber ?? '',
         );
-        final acresController = TextEditingController(
-          text: incident?.acres ?? '',
-        );
-        final containmentController = TextEditingController(
-          text: incident?.containmentPercent ?? '',
-        );
-        final jurisdictionController = TextEditingController(
-          text: incident?.jurisdiction ?? '',
-        );
-        final agencyController = TextEditingController(
-          text: incident?.agency ?? '',
-        );
         final resourceOrderController = TextEditingController(
           text: incident?.resourceOrderNumber ?? '',
         );
         final financialCodeController = TextEditingController(
           text: incident?.financialCode ?? '',
         );
-        final notesController = TextEditingController(
-          text: incident?.notes ?? '',
-        );
-        var status = incident?.status ?? 'Active';
 
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: Text(incident == null ? 'Add Incident' : 'Edit Incident'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: incidentNameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Incident Name',
-                      ),
-                    ),
-                    TextField(
-                      controller: incidentNumberController,
-                      decoration: const InputDecoration(
-                        labelText: 'Incident Number',
-                      ),
-                    ),
-                    DropdownButtonFormField<String>(
-                      initialValue: status,
-                      decoration: const InputDecoration(labelText: 'Status'),
-                      items: const [
-                        DropdownMenuItem(
-                            value: 'Active', child: Text('Active')),
-                        DropdownMenuItem(
-                            value: 'Closed', child: Text('Closed')),
-                      ],
-                      onChanged: (value) {
-                        if (value == null) return;
-                        setDialogState(() => status = value);
-                      },
-                    ),
-                    TextField(
-                      controller: acresController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'Acres'),
-                    ),
-                    TextField(
-                      controller: containmentController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'Containment %',
-                      ),
-                    ),
-                    TextField(
-                      controller: jurisdictionController,
-                      decoration: const InputDecoration(
-                        labelText: 'Jurisdiction / Unit',
-                      ),
-                    ),
-                    TextField(
-                      controller: agencyController,
-                      decoration: const InputDecoration(labelText: 'Agency'),
-                    ),
-                    TextField(
-                      controller: resourceOrderController,
-                      decoration: const InputDecoration(
-                        labelText: 'Resource Order Number',
-                      ),
-                    ),
-                    TextField(
-                      controller: financialCodeController,
-                      decoration: const InputDecoration(
-                        labelText: 'Financial Code',
-                      ),
-                    ),
-                    TextField(
-                      controller: notesController,
-                      minLines: 3,
-                      maxLines: 6,
-                      decoration: const InputDecoration(
-                        labelText: 'Notes / Details',
-                      ),
-                    ),
-                  ],
+        return AlertDialog(
+          title: Text(incident == null ? 'Add Incident' : 'Edit Incident'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: incidentNameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Incident Name',
+                  ),
                 ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel'),
+                TextField(
+                  controller: incidentNumberController,
+                  decoration: const InputDecoration(
+                    labelText: 'Incident Number',
+                  ),
                 ),
-                ElevatedButton(
-                  onPressed: () {
-                    final updated = Incident(
-                      id: incident?.id ?? _uuid.v4(),
-                      incidentName: incidentNameController.text.trim(),
-                      incidentNumber: incidentNumberController.text.trim(),
-                      resourceOrderNumber: resourceOrderController.text.trim(),
-                      financialCode: financialCodeController.text.trim(),
-                      status: status,
-                      isSelected:
-                          status == 'Active' && (incident?.isSelected ?? false),
-                      createdAt: incident?.createdAt ?? DateTime.now(),
-                      source: incident?.source,
-                      sourceIrwinId: incident?.sourceIrwinId,
-                      sourceStatus: incident?.sourceStatus,
-                      acres: acresController.text.trim(),
-                      containmentPercent: containmentController.text.trim(),
-                      jurisdiction: jurisdictionController.text.trim(),
-                      agency: agencyController.text.trim(),
-                      notes: notesController.text.trim(),
-                    );
-
-                    Navigator.pop(context, updated);
-                  },
-                  child: const Text('Save'),
+                TextField(
+                  controller: resourceOrderController,
+                  decoration: const InputDecoration(
+                    labelText: 'Resource Order Number',
+                  ),
+                ),
+                TextField(
+                  controller: financialCodeController,
+                  decoration: const InputDecoration(
+                    labelText: 'Financial Code',
+                  ),
                 ),
               ],
-            );
-          },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final updated = Incident(
+                  id: incident?.id ?? _uuid.v4(),
+                  incidentName: incidentNameController.text.trim(),
+                  incidentNumber: incidentNumberController.text.trim(),
+                  resourceOrderNumber: resourceOrderController.text.trim(),
+                  financialCode: financialCodeController.text.trim(),
+                  status: incident?.status ?? Incident.statusActive,
+                  isSelected: incident?.isSelected ?? false,
+                  createdAt: incident?.createdAt ?? DateTime.now(),
+                  source: incident?.source,
+                  sourceIrwinId: incident?.sourceIrwinId,
+                  sourceStatus: incident?.sourceStatus,
+                  acres: incident?.acres,
+                  containmentPercent: incident?.containmentPercent,
+                  jurisdiction: incident?.jurisdiction,
+                  agency: incident?.agency,
+                  notes: incident?.notes,
+                );
+
+                Navigator.pop(context, updated);
+              },
+              child: const Text('Save'),
+            ),
+          ],
         );
       },
     );
@@ -225,120 +182,140 @@ class _IncidentsPageState extends State<IncidentsPage> {
   void _openIncidentDetails(Incident incident) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       showDragHandle: true,
       builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.all(20),
-          child: Wrap(
-            runSpacing: 12,
-            children: [
-              Text(
-                incident.incidentName.isEmpty
-                    ? 'Unnamed Incident'
-                    : incident.incidentName,
-                style: Theme.of(context).textTheme.headlineSmall,
-              ),
-              if (incident.incidentNumber.isNotEmpty)
-                _DetailRow(
-                  label: 'Incident Number',
-                  value: incident.incidentNumber,
+        return SafeArea(
+          child: DraggableScrollableSheet(
+            expand: false,
+            initialChildSize: 0.72,
+            minChildSize: 0.35,
+            maxChildSize: 0.95,
+            builder: (context, scrollController) {
+              return SingleChildScrollView(
+                controller: scrollController,
+                padding: EdgeInsets.fromLTRB(
+                  20,
+                  0,
+                  20,
+                  20 + MediaQuery.of(context).viewInsets.bottom,
                 ),
-              _DetailRow(label: 'Status', value: incident.status),
-              _DetailRow(
-                label: 'Current Incident',
-                value: incident.isSelected ? 'Yes' : 'No',
-              ),
-              if ((incident.acres ?? '').isNotEmpty)
-                _DetailRow(label: 'Acres', value: incident.acres ?? ''),
-              if ((incident.containmentPercent ?? '').isNotEmpty)
-                _DetailRow(
-                  label: 'Containment',
-                  value: '${incident.containmentPercent}%',
+                child: Wrap(
+                  runSpacing: 12,
+                  children: [
+                    Text(
+                      incident.incidentName.isEmpty
+                          ? 'Unnamed Incident'
+                          : incident.incidentName,
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                    if (incident.incidentNumber.isNotEmpty)
+                      _DetailRow(
+                        label: 'Incident Number',
+                        value: incident.incidentNumber,
+                      ),
+                    _DetailRow(
+                      label: 'Status',
+                      value: incident.displayStatus,
+                    ),
+                    _DetailRow(
+                      label: 'Current Incident',
+                      value: incident.isSelected ? 'Yes' : 'No',
+                    ),
+                    if ((incident.acres ?? '').isNotEmpty)
+                      _DetailRow(label: 'Acres', value: incident.acres ?? ''),
+                    if ((incident.containmentPercent ?? '').isNotEmpty)
+                      _DetailRow(
+                        label: 'Containment',
+                        value: '${incident.containmentPercent}%',
+                      ),
+                    if ((incident.jurisdiction ?? '').isNotEmpty)
+                      _DetailRow(
+                        label: 'Jurisdiction / Unit',
+                        value: incident.jurisdiction ?? '',
+                      ),
+                    if ((incident.agency ?? '').isNotEmpty)
+                      _DetailRow(label: 'Agency', value: incident.agency ?? ''),
+                    if (incident.resourceOrderNumber.isNotEmpty)
+                      _DetailRow(
+                        label: 'Resource Order Number',
+                        value: incident.resourceOrderNumber,
+                      ),
+                    if (incident.financialCode.isNotEmpty)
+                      _DetailRow(
+                        label: 'Financial Code',
+                        value: incident.financialCode,
+                      ),
+                    if ((incident.source ?? '').isNotEmpty)
+                      _DetailRow(label: 'Source', value: incident.source ?? ''),
+                    if ((incident.notes ?? '').isNotEmpty)
+                      Text(
+                        incident.notes!,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    const Divider(),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          _editIncident(incident);
+                        },
+                        icon: const Icon(Icons.edit_outlined),
+                        label: const Text('Edit Incident'),
+                      ),
+                    ),
+                    if (incident.isActive) ...[
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            _selectIncident(incident.id);
+                          },
+                          icon: const Icon(Icons.check_circle_outline),
+                          label: const Text('Set as Current Incident'),
+                        ),
+                      ),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            _closeIncident(incident.id);
+                          },
+                          icon: const Icon(Icons.lock_outline),
+                          label: const Text('Close Incident'),
+                        ),
+                      ),
+                    ],
+                    if (incident.isClosed)
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            _reopenIncident(incident.id);
+                          },
+                          icon: const Icon(Icons.lock_open),
+                          label: const Text('Reopen Incident'),
+                        ),
+                      ),
+                    SizedBox(
+                      width: double.infinity,
+                      child: TextButton.icon(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          _deleteIncident(incident.id);
+                        },
+                        icon: const Icon(Icons.delete_outline),
+                        label: const Text('Delete Incident'),
+                      ),
+                    ),
+                  ],
                 ),
-              if ((incident.jurisdiction ?? '').isNotEmpty)
-                _DetailRow(
-                  label: 'Jurisdiction / Unit',
-                  value: incident.jurisdiction ?? '',
-                ),
-              if ((incident.agency ?? '').isNotEmpty)
-                _DetailRow(label: 'Agency', value: incident.agency ?? ''),
-              if (incident.resourceOrderNumber.isNotEmpty)
-                _DetailRow(
-                  label: 'Resource Order Number',
-                  value: incident.resourceOrderNumber,
-                ),
-              if (incident.financialCode.isNotEmpty)
-                _DetailRow(
-                  label: 'Financial Code',
-                  value: incident.financialCode,
-                ),
-              if ((incident.source ?? '').isNotEmpty)
-                _DetailRow(label: 'Source', value: incident.source ?? ''),
-              if ((incident.notes ?? '').isNotEmpty)
-                Text(
-                  incident.notes!,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              const Divider(),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    _editIncident(incident);
-                  },
-                  icon: const Icon(Icons.edit_outlined),
-                  label: const Text('Edit Incident'),
-                ),
-              ),
-              if (incident.isActive) ...[
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      _selectIncident(incident.id);
-                    },
-                    icon: const Icon(Icons.check_circle_outline),
-                    label: const Text('Set as Current Incident'),
-                  ),
-                ),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      _closeIncident(incident.id);
-                    },
-                    icon: const Icon(Icons.lock_outline),
-                    label: const Text('Close Incident'),
-                  ),
-                ),
-              ],
-              if (incident.isClosed)
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      _reopenIncident(incident.id);
-                    },
-                    icon: const Icon(Icons.lock_open),
-                    label: const Text('Reopen Incident'),
-                  ),
-                ),
-              SizedBox(
-                width: double.infinity,
-                child: TextButton.icon(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    _deleteIncident(incident.id);
-                  },
-                  icon: const Icon(Icons.delete_outline),
-                  label: const Text('Delete Incident'),
-                ),
-              ),
-            ],
+              );
+            },
           ),
         );
       },
@@ -369,11 +346,10 @@ class _IncidentsPageState extends State<IncidentsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final filteredIncidents = _incidents
-        .where(
-          (incident) => _showClosed ? incident.isClosed : incident.isActive,
-        )
-        .toList();
+    final filteredIncidents = _incidents.where((incident) {
+      if (incident.isDeletedArchived) return false;
+      return _showClosed ? incident.isClosed : incident.isActive;
+    }).toList();
 
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());

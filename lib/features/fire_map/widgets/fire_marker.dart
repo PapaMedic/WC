@@ -7,6 +7,7 @@ class FireMarker extends StatelessWidget {
   final bool isRx;
   final bool isResolved;
   final bool isCached;
+  final double? acres;
   final String label;
 
   const FireMarker({
@@ -15,21 +16,23 @@ class FireMarker extends StatelessWidget {
     required this.isRx,
     required this.isResolved,
     required this.isCached,
+    required this.acres,
     required this.label,
   });
 
   @override
   Widget build(BuildContext context) {
+    final sizeColor = _colorForAcreage(acres);
     final markerColor = isResolved
         ? const Color(0xFF767B72)
         : isRx
             ? AppColors.secondaryAccent
-            : AppColors.primaryAccent;
+            : sizeColor;
     final background = isResolved
         ? const Color(0xFF242722)
         : isRx
             ? const Color(0xFF1F3116)
-            : const Color(0xFF3A1206);
+            : _backgroundForAcreage(acres);
     final glowAlpha = isResolved ? 0.13 : 0.38;
 
     return Column(
@@ -125,5 +128,25 @@ class FireMarker extends StatelessWidget {
         ],
       ],
     );
+  }
+
+  Color _colorForAcreage(double? acres) {
+    if (acres == null || acres < 10) {
+      return const Color(0xFFFFD84D);
+    }
+    if (acres < 100) {
+      return const Color(0xFFFF8A1C);
+    }
+    return const Color(0xFFE53935);
+  }
+
+  Color _backgroundForAcreage(double? acres) {
+    if (acres == null || acres < 10) {
+      return const Color(0xFF3A3108);
+    }
+    if (acres < 100) {
+      return const Color(0xFF3A1C06);
+    }
+    return const Color(0xFF3A0808);
   }
 }

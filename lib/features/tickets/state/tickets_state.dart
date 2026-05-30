@@ -179,6 +179,11 @@ class TicketsState extends ChangeNotifier {
       isMobilization: sourceTicket.isMobilization,
       rateIsHours: sourceTicket.rateIsHours,
       rateIsMiles: sourceTicket.rateIsMiles,
+      globalShiftDate: sourceTicket.globalShiftDate,
+      globalBlock1Start: sourceTicket.globalBlock1Start,
+      globalBlock1Stop: sourceTicket.globalBlock1Stop,
+      globalBlock2Start: sourceTicket.globalBlock2Start,
+      globalBlock2Stop: sourceTicket.globalBlock2Stop,
       equipmentEntries:
           sourceTicket.equipmentEntries.map(_duplicateEquipmentRow).toList(),
       personnelEntries:

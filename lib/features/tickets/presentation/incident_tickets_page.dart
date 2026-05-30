@@ -17,6 +17,7 @@ class IncidentTicketsPage extends StatefulWidget {
   final String incidentNumber;
   final String resourceOrderNumber;
   final String financialCode;
+  final bool allowCreate;
   final VoidCallback? onBack;
 
   const IncidentTicketsPage({
@@ -26,6 +27,7 @@ class IncidentTicketsPage extends StatefulWidget {
     this.incidentNumber = '',
     this.resourceOrderNumber = '',
     this.financialCode = '',
+    this.allowCreate = true,
     this.onBack,
   });
 
@@ -83,11 +85,12 @@ class _IncidentTicketsPageState extends State<IncidentTicketsPage> {
                       ],
                     ),
                   ),
-                  FilledButton.icon(
-                    onPressed: () => _openForm(context),
-                    icon: const Icon(Icons.add),
-                    label: const Text('Create OF-297'),
-                  ),
+                  if (widget.allowCreate)
+                    FilledButton.icon(
+                      onPressed: () => _openForm(context),
+                      icon: const Icon(Icons.add),
+                      label: const Text('Create Shift Ticket'),
+                    ),
                 ],
               ),
               const SizedBox(height: AppSpacing.lg),
@@ -95,7 +98,9 @@ class _IncidentTicketsPageState extends State<IncidentTicketsPage> {
                 title: 'Draft Tickets',
                 emptyMessage: 'No draft OF-297 tickets for this incident.',
                 tickets: draftTickets,
-                onOpen: (ticket) => _openForm(context, ticket.id),
+                onOpen: (ticket) => ticket.isFinalized || !widget.allowCreate
+                    ? _openReview(context, ticket.id)
+                    : _openForm(context, ticket.id),
                 onDelete: (ticket) => ticketsState.deleteDraftTicket(ticket.id),
               ),
               const SizedBox(height: AppSpacing.lg),

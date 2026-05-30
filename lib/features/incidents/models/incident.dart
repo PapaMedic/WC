@@ -1,4 +1,8 @@
 class Incident {
+  static const statusActive = 'active';
+  static const statusClosed = 'closed';
+  static const statusDeletedArchived = 'deletedArchived';
+
   final String id;
   final String incidentName;
   final String incidentNumber;
@@ -22,7 +26,7 @@ class Incident {
     required this.incidentNumber,
     required this.resourceOrderNumber,
     required this.financialCode,
-    this.status = 'Active',
+    this.status = statusActive,
     this.isSelected = false,
     required this.createdAt,
     this.source,
@@ -35,8 +39,37 @@ class Incident {
     this.notes,
   });
 
-  bool get isActive => status == 'Active';
-  bool get isClosed => status == 'Closed';
+  bool get isActive => _normalizedStatus == statusActive;
+  bool get isClosed => _normalizedStatus == statusClosed;
+  bool get isDeletedArchived => _normalizedStatus == statusDeletedArchived;
+
+  String get displayStatus {
+    switch (_normalizedStatus) {
+      case statusActive:
+        return 'Active';
+      case statusClosed:
+        return 'Closed';
+      case statusDeletedArchived:
+        return 'Deleted / Archived';
+      default:
+        return status;
+    }
+  }
+
+  String get _normalizedStatus {
+    switch (status.trim().toLowerCase()) {
+      case 'active':
+        return statusActive;
+      case 'closed':
+        return statusClosed;
+      case 'deletedarchived':
+      case 'deleted_archived':
+      case 'deleted archived':
+        return statusDeletedArchived;
+      default:
+        return status.trim();
+    }
+  }
 
   Map<String, dynamic> toJson() => {
         'id': id,

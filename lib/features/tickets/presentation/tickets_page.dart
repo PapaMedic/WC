@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import 'package:wildland_companion_v2/app/theme/app_spacing.dart';
 import 'package:wildland_companion_v2/core/widgets/tactical_card.dart';
 import 'package:wildland_companion_v2/features/incidents/data/incident_repository.dart';
 import 'package:wildland_companion_v2/features/incidents/models/incident.dart';
+import 'package:wildland_companion_v2/features/tickets/models/of297_shift_ticket.dart';
 import 'package:wildland_companion_v2/features/tickets/presentation/incident_tickets_page.dart';
+import 'package:wildland_companion_v2/features/tickets/state/tickets_state.dart';
 
 class TicketsPage extends StatefulWidget {
   const TicketsPage({super.key});
@@ -20,7 +23,7 @@ class _TicketsPageState extends State<TicketsPage> {
   final DateFormat _shortDateFormat = DateFormat('M/d/yyyy');
   late Future<List<Incident>> _incidentsFuture;
   Incident? _selectedIncident;
-  bool _showClosed = false;
+  _TicketIncidentFilter _filter = _TicketIncidentFilter.active;
   DateTime? _selectedDate;
   _IncidentSort _sortBy = _IncidentSort.dateNewest;
 
@@ -28,6 +31,9 @@ class _TicketsPageState extends State<TicketsPage> {
   void initState() {
     super.initState();
     _incidentsFuture = _incidentRepository.getAllIncidents();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<TicketsState>().loadTickets();
+    });
   }
 
   @override
@@ -47,6 +53,7 @@ class _TicketsPageState extends State<TicketsPage> {
         incidentNumber: selectedIncident.incidentNumber,
         resourceOrderNumber: selectedIncident.resourceOrderNumber,
         financialCode: selectedIncident.financialCode,
+        allowCreate: selectedIncident.isActive,
         onBack: () {
           setState(() {
             _selectedIncident = null;
@@ -57,119 +64,201 @@ class _TicketsPageState extends State<TicketsPage> {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: FutureBuilder<List<Incident>>(
-        future: _incidentsFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      body: Consumer<TicketsState>(
+        builder: (context, ticketsState, _) {
+          return FutureBuilder<List<Incident>>(
+            future: _incidentsFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-          final incidents = _filterAndSortIncidents(snapshot.data ?? []);
+              final allIncidents = snapshot.data ?? [];
+              final incidentGroups = _filterAndSortIncidentGroups(
+                allIncidents,
+                ticketsState.tickets,
+              );
 
-          return ListView(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            children: [
-              Text(
-                'OF-297 Tickets',
-                style: Theme.of(context).textTheme.headlineSmall,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                // PDF export comes later; this module currently owns only
-                // saved draft/finalized form data.
-                'Select an incident to create or review saved shift tickets.',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              SegmentedButton<bool>(
-                segments: const [
-                  ButtonSegment(
-                    value: false,
-                    label: Text('Active'),
-                    icon: Icon(Icons.local_fire_department_outlined),
+              return ListView(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                children: [
+                  Text(
+                    'Shift Ticket Export',
+                    style: Theme.of(context).textTheme.headlineSmall,
                   ),
-                  ButtonSegment(
-                    value: true,
-                    label: Text('Closed'),
-                    icon: Icon(Icons.archive_outlined),
+                  const SizedBox(height: 4),
+                  Text(
+                    // PDF export comes later; this module currently owns only
+                    // saved draft/finalized form data.
+                    'Select an incident to create or review saved shift tickets.',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  SegmentedButton<_TicketIncidentFilter>(
+                    segments: const [
+                      ButtonSegment(
+                        value: _TicketIncidentFilter.active,
+                        label: Text(
+                          'Active Incident Tickets',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        icon: Icon(Icons.local_fire_department_outlined),
+                      ),
+                      ButtonSegment(
+                        value: _TicketIncidentFilter.closed,
+                        label: Text(
+                          'Closed Incident Tickets',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        icon: Icon(Icons.archive_outlined),
+                      ),
+                      ButtonSegment(
+                        value: _TicketIncidentFilter.deleted,
+                        label: Text(
+                          'Deleted Incident Tickets',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        icon: Icon(Icons.inventory_2_outlined),
+                      ),
+                    ],
+                    selected: {_filter},
+                    onSelectionChanged: (value) {
+                      setState(() {
+                        _filter = value.first;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  _IncidentSearchControls(
+                    searchController: _searchController,
+                    selectedDate: _selectedDate,
+                    sortBy: _sortBy,
+                    formatDate: _dateFormat.format,
+                    onSearchChanged: (_) => setState(() {}),
+                    onSearchCleared: () {
+                      setState(_searchController.clear);
+                    },
+                    onPickDate: _pickDateFilter,
+                    onClearDate: () {
+                      setState(() {
+                        _selectedDate = null;
+                      });
+                    },
+                    onSortChanged: (sortBy) {
+                      setState(() {
+                        _sortBy = sortBy;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  TacticalCard(
+                    title: '${_filter.title} (${incidentGroups.length})',
+                    child: incidentGroups.isEmpty
+                        ? const Padding(
+                            padding:
+                                EdgeInsets.symmetric(vertical: AppSpacing.md),
+                            child: Text('No incidents match this view.'),
+                          )
+                        : Column(
+                            children: incidentGroups.map((group) {
+                              final incident = group.incident;
+                              return ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                leading: Icon(
+                                  group.isOrphaned
+                                      ? Icons.link_off_outlined
+                                      : Icons.warning_amber_outlined,
+                                ),
+                                title: Text(
+                                  incident.incidentName.isEmpty
+                                      ? group.fallbackName
+                                      : incident.incidentName,
+                                ),
+                                subtitle: Text(
+                                  'Date: ${_dateFormat.format(incident.createdAt)}\n'
+                                  'Incident #: ${incident.incidentNumber.isEmpty ? '-' : incident.incidentNumber}\n'
+                                  'Resource Order: ${incident.resourceOrderNumber.isEmpty ? '-' : incident.resourceOrderNumber}\n'
+                                  'Tickets: ${group.ticketCount}',
+                                ),
+                                isThreeLine: true,
+                                trailing:
+                                    const Icon(Icons.chevron_right_outlined),
+                                onTap: () {
+                                  setState(() {
+                                    _selectedIncident = incident;
+                                  });
+                                },
+                              );
+                            }).toList(),
+                          ),
                   ),
                 ],
-                selected: {_showClosed},
-                onSelectionChanged: (value) {
-                  setState(() {
-                    _showClosed = value.first;
-                  });
-                },
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              _IncidentSearchControls(
-                searchController: _searchController,
-                selectedDate: _selectedDate,
-                sortBy: _sortBy,
-                formatDate: _dateFormat.format,
-                onSearchChanged: (_) => setState(() {}),
-                onSearchCleared: () {
-                  setState(_searchController.clear);
-                },
-                onPickDate: _pickDateFilter,
-                onClearDate: () {
-                  setState(() {
-                    _selectedDate = null;
-                  });
-                },
-                onSortChanged: (sortBy) {
-                  setState(() {
-                    _sortBy = sortBy;
-                  });
-                },
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              TacticalCard(
-                title:
-                    '${_showClosed ? 'Closed' : 'Active'} Incidents (${incidents.length})',
-                child: incidents.isEmpty
-                    ? const Padding(
-                        padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
-                        child: Text('No incidents match this view.'),
-                      )
-                    : Column(
-                        children: incidents.map((incident) {
-                          return ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: const Icon(Icons.warning_amber_outlined),
-                            title: Text(
-                              incident.incidentName.isEmpty
-                                  ? 'Unnamed Incident'
-                                  : incident.incidentName,
-                            ),
-                            subtitle: Text(
-                              'Date: ${_dateFormat.format(incident.createdAt)}\n'
-                              'Incident #: ${incident.incidentNumber.isEmpty ? '-' : incident.incidentNumber}\n'
-                              'Resource Order: ${incident.resourceOrderNumber.isEmpty ? '-' : incident.resourceOrderNumber}',
-                            ),
-                            isThreeLine: true,
-                            trailing: const Icon(Icons.chevron_right_outlined),
-                            onTap: () {
-                              setState(() {
-                                _selectedIncident = incident;
-                              });
-                            },
-                          );
-                        }).toList(),
-                      ),
-              ),
-            ],
+              );
+            },
           );
         },
       ),
     );
   }
 
-  List<Incident> _filterAndSortIncidents(List<Incident> allIncidents) {
+  List<_TicketIncidentGroup> _filterAndSortIncidentGroups(
+    List<Incident> allIncidents,
+    List<OF297ShiftTicket> tickets,
+  ) {
+    final knownIncidentIds =
+        allIncidents.map((incident) => incident.id).toSet();
+    final groups = allIncidents.where((incident) {
+      switch (_filter) {
+        case _TicketIncidentFilter.active:
+          return incident.isActive;
+        case _TicketIncidentFilter.closed:
+          return incident.isClosed;
+        case _TicketIncidentFilter.deleted:
+          return incident.isDeletedArchived;
+      }
+    }).map((incident) {
+      final ticketCount =
+          tickets.where((ticket) => ticket.incidentId == incident.id).length;
+      return _TicketIncidentGroup(
+        incident: incident,
+        ticketCount: ticketCount,
+      );
+    }).toList();
+
+    if (_filter == _TicketIncidentFilter.deleted) {
+      final orphanedTickets = tickets
+          .where((ticket) => !knownIncidentIds.contains(ticket.incidentId))
+          .toList();
+      final orphanedIncidentIds =
+          orphanedTickets.map((ticket) => ticket.incidentId).toSet();
+      for (final incidentId in orphanedIncidentIds) {
+        final incidentTickets = orphanedTickets
+            .where((ticket) => ticket.incidentId == incidentId)
+            .toList();
+        final firstTicket = incidentTickets.first;
+        groups.add(
+          _TicketIncidentGroup(
+            incident: Incident(
+              id: incidentId,
+              incidentName: firstTicket.incidentName.isEmpty
+                  ? 'Orphaned Tickets'
+                  : firstTicket.incidentName,
+              incidentNumber: firstTicket.incidentNumber,
+              resourceOrderNumber: firstTicket.resourceOrderNumber,
+              financialCode: firstTicket.financialCode,
+              status: Incident.statusDeletedArchived,
+              createdAt: firstTicket.createdAt,
+            ),
+            ticketCount: incidentTickets.length,
+            isOrphaned: true,
+          ),
+        );
+      }
+    }
+
     final query = _searchController.text.trim().toLowerCase();
-    final filtered = allIncidents.where((incident) {
-      final statusMatches = _showClosed ? incident.isClosed : incident.isActive;
-      if (!statusMatches) return false;
+    final filtered = groups.where((group) {
+      final incident = group.incident;
 
       final selectedDate = _selectedDate;
       if (selectedDate != null &&
@@ -193,17 +282,20 @@ class _TicketsPageState extends State<TicketsPage> {
     }).toList();
 
     filtered.sort((a, b) {
+      final left = a.incident;
+      final right = b.incident;
       switch (_sortBy) {
         case _IncidentSort.dateNewest:
-          return b.createdAt.compareTo(a.createdAt);
+          return right.createdAt.compareTo(left.createdAt);
         case _IncidentSort.dateOldest:
-          return a.createdAt.compareTo(b.createdAt);
+          return left.createdAt.compareTo(right.createdAt);
         case _IncidentSort.name:
-          return _compareText(a.incidentName, b.incidentName);
+          return _compareText(left.incidentName, right.incidentName);
         case _IncidentSort.incidentNumber:
-          return _compareText(a.incidentNumber, b.incidentNumber);
+          return _compareText(left.incidentNumber, right.incidentNumber);
         case _IncidentSort.resourceOrder:
-          return _compareText(a.resourceOrderNumber, b.resourceOrderNumber);
+          return _compareText(
+              left.resourceOrderNumber, right.resourceOrderNumber);
       }
     });
 
@@ -246,6 +338,38 @@ enum _IncidentSort {
   name,
   incidentNumber,
   resourceOrder,
+}
+
+enum _TicketIncidentFilter {
+  active,
+  closed,
+  deleted;
+
+  String get title {
+    switch (this) {
+      case _TicketIncidentFilter.active:
+        return 'Active Incident Tickets';
+      case _TicketIncidentFilter.closed:
+        return 'Closed Incident Tickets';
+      case _TicketIncidentFilter.deleted:
+        return 'Deleted Incident Tickets';
+    }
+  }
+}
+
+class _TicketIncidentGroup {
+  final Incident incident;
+  final int ticketCount;
+  final bool isOrphaned;
+
+  const _TicketIncidentGroup({
+    required this.incident,
+    required this.ticketCount,
+    this.isOrphaned = false,
+  });
+
+  String get fallbackName =>
+      isOrphaned ? 'Orphaned Tickets' : 'Unnamed Incident';
 }
 
 class _IncidentSearchControls extends StatelessWidget {

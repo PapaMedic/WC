@@ -56,7 +56,12 @@ class IncidentRepository {
 
     final updatedList = incidents.map((incident) {
       if (incident.id == updatedIncident.id) {
-        return updatedIncident;
+        return incident.copyWith(
+          incidentName: updatedIncident.incidentName,
+          incidentNumber: updatedIncident.incidentNumber,
+          resourceOrderNumber: updatedIncident.resourceOrderNumber,
+          financialCode: updatedIncident.financialCode,
+        );
       }
       return incident;
     }).toList();
@@ -67,8 +72,15 @@ class IncidentRepository {
   Future<void> deleteIncident(String id) async {
     final incidents = await getAllIncidents();
 
-    final updatedList =
-        incidents.where((incident) => incident.id != id).toList();
+    final updatedList = incidents.map((incident) {
+      if (incident.id == id) {
+        return incident.copyWith(
+          status: Incident.statusDeletedArchived,
+          isSelected: false,
+        );
+      }
+      return incident;
+    }).toList();
 
     await saveAllIncidents(updatedList);
   }
@@ -79,7 +91,7 @@ class IncidentRepository {
     final updatedList = incidents.map((incident) {
       if (incident.id == id) {
         return incident.copyWith(
-          status: 'Closed',
+          status: Incident.statusClosed,
           isSelected: false,
         );
       }
@@ -94,7 +106,7 @@ class IncidentRepository {
 
     final updatedList = incidents.map((incident) {
       if (incident.id == id) {
-        return incident.copyWith(status: 'Active');
+        return incident.copyWith(status: Incident.statusActive);
       }
       return incident;
     }).toList();
@@ -112,12 +124,17 @@ class IncidentRepository {
     return incidents.where((incident) => incident.isClosed).toList();
   }
 
+  Future<List<Incident>> getDeletedArchivedIncidents() async {
+    final incidents = await getAllIncidents();
+    return incidents.where((incident) => incident.isDeletedArchived).toList();
+  }
+
   Future<void> selectIncident(String id) async {
     final incidents = await getAllIncidents();
 
     final updatedList = incidents.map((incident) {
       return incident.copyWith(
-        isSelected: incident.id == id,
+        isSelected: incident.id == id && incident.isActive,
       );
     }).toList();
 

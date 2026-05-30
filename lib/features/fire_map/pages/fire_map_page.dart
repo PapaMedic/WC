@@ -362,6 +362,7 @@ class _FireMapPageState extends State<FireMapPage> {
                 isRx: incident.isRx,
                 isResolved: isResolved(incident),
                 isCached: _feedStatus == FireMapFeedStatus.cached,
+                acres: incident.acres,
                 label: incident.name,
               ),
             ),

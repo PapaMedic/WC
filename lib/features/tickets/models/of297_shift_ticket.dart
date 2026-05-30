@@ -29,6 +29,11 @@ class OF297ShiftTicket {
   final bool? isMobilization;
   final bool rateIsHours;
   final bool rateIsMiles;
+  final DateTime? globalShiftDate;
+  final String globalBlock1Start;
+  final String globalBlock1Stop;
+  final String globalBlock2Start;
+  final String globalBlock2Stop;
   final DateTime? shiftStart;
   final DateTime? shiftEnd;
   final List<OF297EquipmentTimeEntry> equipmentEntries;
@@ -62,6 +67,11 @@ class OF297ShiftTicket {
     this.isMobilization,
     this.rateIsHours = true,
     this.rateIsMiles = false,
+    this.globalShiftDate,
+    this.globalBlock1Start = '',
+    this.globalBlock1Stop = '',
+    this.globalBlock2Start = '',
+    this.globalBlock2Stop = '',
     this.shiftStart,
     this.shiftEnd,
     this.equipmentEntries = const [],
@@ -98,6 +108,11 @@ class OF297ShiftTicket {
         'isMobilization': isMobilization,
         'rateIsHours': rateIsHours,
         'rateIsMiles': rateIsMiles,
+        'globalShiftDate': globalShiftDate?.toIso8601String(),
+        'globalBlock1Start': globalBlock1Start,
+        'globalBlock1Stop': globalBlock1Stop,
+        'globalBlock2Start': globalBlock2Start,
+        'globalBlock2Stop': globalBlock2Stop,
         'shiftStart': shiftStart?.toIso8601String(),
         'shiftEnd': shiftEnd?.toIso8601String(),
         'equipmentEntries':
@@ -135,6 +150,11 @@ class OF297ShiftTicket {
       isMobilization: json['isMobilization'],
       rateIsHours: json['rateIsHours'] ?? true,
       rateIsMiles: json['rateIsMiles'] ?? false,
+      globalShiftDate: DateTime.tryParse(json['globalShiftDate'] ?? ''),
+      globalBlock1Start: json['globalBlock1Start'] ?? '',
+      globalBlock1Stop: json['globalBlock1Stop'] ?? '',
+      globalBlock2Start: json['globalBlock2Start'] ?? '',
+      globalBlock2Stop: json['globalBlock2Stop'] ?? '',
       shiftStart: DateTime.tryParse(json['shiftStart'] ?? ''),
       shiftEnd: DateTime.tryParse(json['shiftEnd'] ?? ''),
       equipmentEntries: ((json['equipmentEntries'] ?? []) as List<dynamic>)
@@ -190,6 +210,11 @@ class OF297ShiftTicket {
     Object? isMobilization = _unset,
     bool? rateIsHours,
     bool? rateIsMiles,
+    Object? globalShiftDate = _unset,
+    String? globalBlock1Start,
+    String? globalBlock1Stop,
+    String? globalBlock2Start,
+    String? globalBlock2Stop,
     DateTime? shiftStart,
     DateTime? shiftEnd,
     List<OF297EquipmentTimeEntry>? equipmentEntries,
@@ -224,6 +249,13 @@ class OF297ShiftTicket {
           : isMobilization as bool?,
       rateIsHours: rateIsHours ?? this.rateIsHours,
       rateIsMiles: rateIsMiles ?? this.rateIsMiles,
+      globalShiftDate: identical(globalShiftDate, _unset)
+          ? this.globalShiftDate
+          : globalShiftDate as DateTime?,
+      globalBlock1Start: globalBlock1Start ?? this.globalBlock1Start,
+      globalBlock1Stop: globalBlock1Stop ?? this.globalBlock1Stop,
+      globalBlock2Start: globalBlock2Start ?? this.globalBlock2Start,
+      globalBlock2Stop: globalBlock2Stop ?? this.globalBlock2Stop,
       shiftStart: shiftStart ?? this.shiftStart,
       shiftEnd: shiftEnd ?? this.shiftEnd,
       equipmentEntries: equipmentEntries ?? this.equipmentEntries,

@@ -115,11 +115,10 @@ class _DashboardPageState extends State<DashboardPage> {
               timeText: timeText,
             ),
             const SizedBox(height: 18),
-
             TopoDashboardCard(
               icon: Icons.local_fire_department,
               title: 'Current Incident',
-              accentLabel: _selectedIncident?.status ?? 'Not Selected',
+              accentLabel: _selectedIncident?.displayStatus ?? 'Not Selected',
               child: _selectedIncident == null
                   ? const _EmptyDashboardText(
                       message: 'No current incident selected.',
@@ -141,12 +140,24 @@ class _DashboardPageState extends State<DashboardPage> {
                           label: 'Financial Code',
                           value: _selectedIncident!.financialCode,
                         ),
+                        if (_hasFireMapValue(_selectedIncident!.acres))
+                          _InfoLine(
+                            label: 'Acres',
+                            value: _selectedIncident!.acres ?? '',
+                          ),
+                        if (_hasFireMapValue(
+                          _selectedIncident!.containmentPercent,
+                        ))
+                          _InfoLine(
+                            label: 'Containment',
+                            value: _formatContainment(
+                              _selectedIncident!.containmentPercent ?? '',
+                            ),
+                          ),
                       ],
                     ),
             ),
-
             const SizedBox(height: 14),
-
             _TicketCountsCard(
               openDraftsCount: openDraftsCount,
               finalizedTicketsCount: finalizedTicketsCount,
@@ -161,9 +172,7 @@ class _DashboardPageState extends State<DashboardPage> {
                       AppRouter.navigate(context, 4);
                     },
             ),
-
             const SizedBox(height: 14),
-
             TopoDashboardCard(
               icon: Icons.fire_truck,
               title: 'Selected Apparatus',
@@ -199,9 +208,7 @@ class _DashboardPageState extends State<DashboardPage> {
                       ],
                     ),
             ),
-
             const SizedBox(height: 14),
-
             TopoDashboardCard(
               icon: Icons.groups,
               title: 'Assigned Crew',
@@ -252,6 +259,17 @@ class _DashboardPageState extends State<DashboardPage> {
         ),
       ),
     );
+  }
+
+  bool _hasFireMapValue(String? value) {
+    return (_selectedIncident?.source ?? '').trim().isNotEmpty &&
+        (value ?? '').trim().isNotEmpty;
+  }
+
+  String _formatContainment(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty || trimmed.endsWith('%')) return trimmed;
+    return '$trimmed%';
   }
 }
 

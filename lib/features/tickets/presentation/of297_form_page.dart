@@ -15,6 +15,7 @@ import 'package:wildland_companion_v2/features/tickets/presentation/widgets/of29
 import 'package:wildland_companion_v2/features/tickets/presentation/widgets/of297_status_pill.dart';
 import 'package:wildland_companion_v2/features/tickets/presentation/widgets/of297_text_field.dart';
 import 'package:wildland_companion_v2/features/tickets/state/tickets_state.dart';
+import 'package:wildland_companion_v2/features/tickets/utils/shift_ticket_time.dart';
 
 /// First working OF-297 form.
 ///
@@ -61,6 +62,11 @@ class _OF297FormPageState extends State<OF297FormPage> {
   final _remarksController = TextEditingController();
   final _contractorRepController = TextEditingController();
   final _supervisorController = TextEditingController();
+  final _globalShiftDateController = TextEditingController();
+  final _globalBlock1StartController = TextEditingController();
+  final _globalBlock1StopController = TextEditingController();
+  final _globalBlock2StartController = TextEditingController();
+  final _globalBlock2StopController = TextEditingController();
 
   final List<_EquipmentRowControllers> _equipmentRows =
       List.generate(4, (_) => _EquipmentRowControllers());
@@ -95,6 +101,11 @@ class _OF297FormPageState extends State<OF297FormPage> {
     _remarksController.dispose();
     _contractorRepController.dispose();
     _supervisorController.dispose();
+    _globalShiftDateController.dispose();
+    _globalBlock1StartController.dispose();
+    _globalBlock1StopController.dispose();
+    _globalBlock2StartController.dispose();
+    _globalBlock2StopController.dispose();
     for (final row in _equipmentRows) {
       row.dispose();
     }
@@ -130,7 +141,7 @@ class _OF297FormPageState extends State<OF297FormPage> {
         equipmentType: selectedApparatus?.equipmentType ?? '',
         serialVinNumber: selectedApparatus?.serialVinNumber ?? '',
         equipmentId: selectedApparatus?.licenseIdNumber ?? '',
-        personnelEntries: assignedPersonnel.take(4).map((person) {
+        personnelEntries: assignedPersonnel.map((person) {
           return OF297PersonnelTimeEntry(
             id: _uuid.v4(),
             name: person.name,
@@ -141,6 +152,13 @@ class _OF297FormPageState extends State<OF297FormPage> {
         updatedAt: now,
       );
       await ticketsState.addTicket(ticket);
+    } else if (!ticket.isFinalized) {
+      ticket = ticket.copyWith(
+        incidentName: widget.incidentName,
+        incidentNumber: widget.incidentNumber,
+        resourceOrderNumber: widget.resourceOrderNumber,
+        financialCode: widget.financialCode,
+      );
     }
 
     if (!mounted) return;
@@ -163,17 +181,23 @@ class _OF297FormPageState extends State<OF297FormPage> {
       _remarksController.text = ticket.remarks;
       _contractorRepController.text = ticket.contractorRepresentativeName;
       _supervisorController.text = ticket.incidentSupervisorName;
+      _globalShiftDateController.text = _formatDate(ticket.globalShiftDate);
+      _globalBlock1StartController.text = ticket.globalBlock1Start;
+      _globalBlock1StopController.text = ticket.globalBlock1Stop;
+      _globalBlock2StartController.text = ticket.globalBlock2Start;
+      _globalBlock2StopController.text = ticket.globalBlock2Stop;
       _transportRetained = ticket.transportRetained;
       _isMobilization = ticket.isMobilization;
       _rateIsHours = ticket.rateIsHours;
       _rateIsMiles = ticket.rateIsMiles;
-      _populateEquipmentRows(ticket.equipmentEntries);
-      _populatePersonnelRows(ticket.personnelEntries);
+      _populateEquipmentRows(ticket);
+      _populatePersonnelRows(ticket);
       _isInitializing = false;
     });
   }
 
-  void _populateEquipmentRows(List<OF297EquipmentTimeEntry> entries) {
+  void _populateEquipmentRows(OF297ShiftTicket ticket) {
+    final entries = ticket.equipmentEntries;
     for (var i = 0; i < _equipmentRows.length; i++) {
       if (i >= entries.length) continue;
       final row = _equipmentRows[i];
@@ -191,10 +215,14 @@ class _OF297FormPageState extends State<OF297FormPage> {
       row.quantity.text = _formatNumber(entry.specialRateQuantity);
       row.type.text = entry.rateType;
       row.notes.text = entry.notes;
+      if (row.hasPopulatedContent) {
+        row.date.text = _globalDisplayDateForRow(ticket, entry.date);
+      }
     }
   }
 
-  void _populatePersonnelRows(List<OF297PersonnelTimeEntry> entries) {
+  void _populatePersonnelRows(OF297ShiftTicket ticket) {
+    final entries = ticket.personnelEntries;
     for (var i = 0; i < _personnelRows.length; i++) {
       if (i >= entries.length) continue;
       final row = _personnelRows[i];
@@ -207,6 +235,9 @@ class _OF297FormPageState extends State<OF297FormPage> {
       row.stop.text = _formatTime(entry.stopTime);
       row.total.text = _formatNumber(entry.totalHours);
       row.notes.text = entry.notes;
+      if (row.hasPopulatedContent) {
+        row.date.text = _globalDisplayDateForRow(ticket, entry.date);
+      }
     }
   }
 
@@ -369,6 +400,9 @@ class _OF297FormPageState extends State<OF297FormPage> {
                 ],
               ),
             ),
+            const SizedBox(height: AppSpacing.lg),
+            _buildGlobalShiftPeriodSection(readOnly: readOnly),
+            const SizedBox(height: AppSpacing.lg),
             OF297SectionCard(
               title: 'Equipment Time 15-21',
               child: Column(
@@ -480,6 +514,104 @@ class _OF297FormPageState extends State<OF297FormPage> {
 
   bool get _usesMileage => _rateIsMiles && !_rateIsHours;
 
+  Widget _buildGlobalShiftPeriodSection({required bool readOnly}) {
+    return OF297SectionCard(
+      title: 'Global Shift Period',
+      child: AnimatedBuilder(
+        animation: Listenable.merge([
+          _globalShiftDateController,
+          _globalBlock1StartController,
+          _globalBlock1StopController,
+          _globalBlock2StartController,
+          _globalBlock2StopController,
+        ]),
+        builder: (context, _) {
+          final totalHours = _calculateGlobalShiftHours();
+          final dateRange = _formatShiftDateRange(
+            _globalShiftDateController.text,
+            _globalBlock1StartController.text,
+            _globalBlock1StopController.text,
+            _globalBlock2StartController.text,
+            _globalBlock2StopController.text,
+          );
+          final overnight = _globalShiftIsOvernight();
+          final exceeds24 = totalHours != null && totalHours > 24;
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _ResponsiveFields(
+                children: [
+                  _DatePickerTextField(
+                    label: 'Shift Date',
+                    controller: _globalShiftDateController,
+                    readOnly: readOnly,
+                  ),
+                  _MilitaryTimeField(
+                    label: 'Time Block 1 Start',
+                    controller: _globalBlock1StartController,
+                    readOnly: readOnly,
+                  ),
+                  _MilitaryTimeField(
+                    label: 'Time Block 1 Stop',
+                    controller: _globalBlock1StopController,
+                    readOnly: readOnly,
+                  ),
+                  _MilitaryTimeField(
+                    label: 'Time Block 2 Start',
+                    controller: _globalBlock2StartController,
+                    readOnly: readOnly,
+                  ),
+                  _MilitaryTimeField(
+                    label: 'Time Block 2 Stop',
+                    controller: _globalBlock2StopController,
+                    readOnly: readOnly,
+                  ),
+                  InputDecorator(
+                    decoration: const InputDecoration(
+                      labelText: 'Calculated Total Hours',
+                      prefixIcon: Icon(Icons.timer_outlined),
+                    ),
+                    child: Text(
+                      totalHours == null ? '' : _formatHours(totalHours),
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Text(
+                overnight
+                    ? 'Overnight shift detected: $dateRange'
+                    : 'Same-day shift: $dateRange',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              if (exceeds24) ...[
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  'Warning: calculated total exceeds 24 hours.',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.error,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+              const SizedBox(height: AppSpacing.md),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: FilledButton.icon(
+                  onPressed: readOnly ? null : _applyGlobalShiftToRows,
+                  icon: const Icon(Icons.playlist_add_check_outlined),
+                  label: const Text('Apply to all rows'),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   void _setRateBasis({bool? hoursSelected, bool? milesSelected}) {
     setState(() {
       if (hoursSelected != null) {
@@ -496,10 +628,166 @@ class _OF297FormPageState extends State<OF297FormPage> {
         }
       }
 
-      for (final row in _equipmentRows) {
-        row.recalculateTotal(useMiles: _usesMileage);
-      }
+      _recalculateAllRowTotals();
     });
+  }
+
+  double? _calculateShiftBlockHours(String startValue, String stopValue) {
+    return _calculateHours(startValue, stopValue);
+  }
+
+  double? _calculateGlobalShiftHours() {
+    final block1Hours = _calculateShiftBlockHours(
+      _globalBlock1StartController.text,
+      _globalBlock1StopController.text,
+    );
+    final block2HasAnyValue = _globalBlock2StartController.text.isNotEmpty ||
+        _globalBlock2StopController.text.isNotEmpty;
+    final block2Hours = _calculateShiftBlockHours(
+      _globalBlock2StartController.text,
+      _globalBlock2StopController.text,
+    );
+
+    if (block1Hours == null && (!block2HasAnyValue || block2Hours == null)) {
+      return null;
+    }
+
+    return (block1Hours ?? 0) + (block2Hours ?? 0);
+  }
+
+  DateTime? _buildDateTimeFromDateAndMilitaryTime(
+    String dateValue,
+    String timeValue,
+  ) {
+    final date = _parseDate(dateValue);
+    final minutes = _parseMilitaryMinutes(timeValue);
+    if (date == null || minutes == null) return null;
+
+    return DateTime(
+      date.year,
+      date.month,
+      date.day,
+      minutes ~/ 60,
+      minutes % 60,
+    );
+  }
+
+  bool _isOvernightBlock(String startValue, String stopValue) {
+    final startMinutes = _parseMilitaryMinutes(startValue);
+    final stopMinutes = _parseMilitaryMinutes(stopValue);
+    if (startMinutes == null || stopMinutes == null) return false;
+    return stopMinutes < startMinutes;
+  }
+
+  bool _globalShiftIsOvernight() {
+    return _isOvernightBlock(
+          _globalBlock1StartController.text,
+          _globalBlock1StopController.text,
+        ) ||
+        _isOvernightBlock(
+          _globalBlock2StartController.text,
+          _globalBlock2StopController.text,
+        );
+  }
+
+  String _formatShiftDateRange(
+    String dateValue,
+    String block1Start,
+    String block1Stop,
+    String block2Start,
+    String block2Stop,
+  ) {
+    final date = _parseDate(dateValue);
+    if (date == null) return '';
+
+    if (_isOvernightBlock(block2Start, block2Stop)) {
+      return formatShiftDateRange(date, block2Start, block2Stop);
+    }
+
+    return formatShiftDateRange(date, block1Start, block1Stop);
+  }
+
+  String _globalDisplayDateForRow(
+    OF297ShiftTicket ticket,
+    DateTime? rowDate,
+  ) {
+    final shiftDate = _formatDate(rowDate ?? ticket.globalShiftDate);
+    if (shiftDate.isEmpty) return '';
+
+    return _formatShiftDateRange(
+      shiftDate,
+      ticket.globalBlock1Start,
+      ticket.globalBlock1Stop,
+      ticket.globalBlock2Start,
+      ticket.globalBlock2Stop,
+    );
+  }
+
+  void _applyGlobalShiftToRows() {
+    setState(() {
+      final shiftDate = _globalShiftDateController.text;
+      final block1Start = _globalBlock1StartController.text;
+      final block1Stop = _globalBlock1StopController.text;
+      final block2Start = _globalBlock2StartController.text;
+      final block2Stop = _globalBlock2StopController.text;
+      final shiftDisplayDate = _formatShiftDateRange(
+        shiftDate,
+        block1Start,
+        block1Stop,
+        block2Start,
+        block2Stop,
+      );
+      var appliedRows = 0;
+
+      for (final row in _equipmentRows) {
+        if (!row.hasPopulatedContent) continue;
+
+        row.date.text = shiftDisplayDate;
+        if (!_usesMileage) {
+          row.start.text = block1Start;
+          row.stop.text = block1Stop;
+        }
+        row.recalculateTotal(useMiles: _usesMileage);
+        appliedRows++;
+      }
+
+      for (final row in _personnelRows) {
+        if (!row.hasPopulatedContent) continue;
+
+        row.date.text = shiftDisplayDate;
+        row.guaranteeStart.text = block1Start;
+        row.guaranteeStop.text = block1Stop;
+        row.start.text = block2Start;
+        row.stop.text = block2Stop;
+        row.recalculateTotal();
+        appliedRows++;
+      }
+
+      _showGlobalShiftApplyMessage(appliedRows);
+    });
+  }
+
+  void _recalculateAllRowTotals() {
+    for (final row in _equipmentRows) {
+      row.recalculateTotal(useMiles: _usesMileage);
+    }
+    for (final row in _personnelRows) {
+      row.recalculateTotal();
+    }
+  }
+
+  void _showGlobalShiftApplyMessage(int appliedRows) {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          appliedRows == 0
+              ? 'No populated rows available.'
+              : 'Applied shift times to populated rows only.',
+        ),
+      ),
+    );
   }
 
   OF297ShiftTicket _buildTicketFromForm() {
@@ -513,9 +801,13 @@ class _OF297FormPageState extends State<OF297FormPage> {
           ),
         )
         .toList();
-    final personnelEntries = _personnelRows
+    final visiblePersonnelEntries = _personnelRows
         .map((row) => row.toEntry(_uuid.v4(), _parseDate, _parseTime))
         .toList();
+    final personnelEntries = [
+      ...visiblePersonnelEntries,
+      ..._ticket!.personnelEntries.skip(_personnelRows.length),
+    ];
     final primaryEquipmentEntry = _firstOrNull(
       equipmentEntries.where(
         (entry) =>
@@ -544,6 +836,11 @@ class _OF297FormPageState extends State<OF297FormPage> {
       isMobilization: _isMobilization,
       rateIsHours: _rateIsHours,
       rateIsMiles: _rateIsMiles,
+      globalShiftDate: _parseDate(_globalShiftDateController.text),
+      globalBlock1Start: _globalBlock1StartController.text.trim(),
+      globalBlock1Stop: _globalBlock1StopController.text.trim(),
+      globalBlock2Start: _globalBlock2StartController.text.trim(),
+      globalBlock2Stop: _globalBlock2StopController.text.trim(),
       operatorName: primaryPersonnelEntry?.name ?? '',
       shiftStart: _usesMileage ? null : primaryEquipmentEntry?.startTime,
       shiftEnd: _usesMileage ? null : primaryEquipmentEntry?.stopTime,
@@ -566,34 +863,25 @@ class _OF297FormPageState extends State<OF297FormPage> {
   DateTime? _parseDate(String value) {
     final trimmed = value.trim();
     if (trimmed.isEmpty) return null;
-    return DateTime.tryParse(trimmed) ?? _tryDateFormat(trimmed);
+    final displayDate = trimmed.split('-').first.trim();
+    return DateTime.tryParse(displayDate) ?? _tryDateFormat(displayDate);
   }
 
   DateTime? _parseTime(String timeValue, String dateValue) {
     final time = timeValue.trim();
     if (time.isEmpty) return null;
 
+    final military = RegExp(r'^(\d{1,2})(\d{2})$').firstMatch(time);
+    if (military != null) {
+      return _buildDateTimeFromDateAndMilitaryTime(dateValue, time);
+    }
+
     final direct = DateTime.tryParse(time);
     if (direct != null) return direct;
 
-    final date = _parseDate(dateValue) ?? DateTime.now();
-    final military = RegExp(r'^(\d{1,2})(\d{2})$').firstMatch(time);
-    if (military != null) {
-      final hour = int.parse(military.group(1)!);
-      final minute = int.parse(military.group(2)!);
-      if (hour > 23 || minute > 59) return null;
-
-      return DateTime(
-        date.year,
-        date.month,
-        date.day,
-        hour,
-        minute,
-      );
-    }
-
     final parts = time.split(':');
     if (parts.length == 2) {
+      final date = _parseDate(dateValue) ?? DateTime.now();
       final hour = int.tryParse(parts[0]) ?? 0;
       final minute = int.tryParse(parts[1]) ?? 0;
       if (hour > 23 || minute > 59) return null;
@@ -640,6 +928,7 @@ class _OF297FormPageState extends State<OF297FormPage> {
 }
 
 class _EquipmentRowControllers {
+  final isActive = ValueNotifier<bool>(false);
   final date = TextEditingController();
   final start = TextEditingController();
   final stop = TextEditingController();
@@ -647,6 +936,17 @@ class _EquipmentRowControllers {
   final quantity = TextEditingController();
   final type = TextEditingController();
   final notes = TextEditingController();
+
+  bool get hasPopulatedContent {
+    return isActive.value ||
+        date.text.trim().isNotEmpty ||
+        start.text.trim().isNotEmpty ||
+        stop.text.trim().isNotEmpty ||
+        total.text.trim().isNotEmpty ||
+        quantity.text.trim().isNotEmpty ||
+        type.text.trim().isNotEmpty ||
+        notes.text.trim().isNotEmpty;
+  }
 
   void recalculateTotal({required bool useMiles}) {
     final calculatedTotal = useMiles
@@ -663,12 +963,19 @@ class _EquipmentRowControllers {
       {required bool useMiles}) {
     final startMileage = _parseMileage(start.text);
     final stopMileage = _parseMileage(stop.text);
+    final parsedStartTime = useMiles ? null : parseTime(start.text, date.text);
+    final parsedStopTime = useMiles
+        ? null
+        : _adjustOvernightStop(
+            parsedStartTime,
+            parseTime(stop.text, date.text),
+          );
 
     return OF297EquipmentTimeEntry(
       id: id,
       date: parseDate(date.text),
-      startTime: useMiles ? null : parseTime(start.text, date.text),
-      stopTime: useMiles ? null : parseTime(stop.text, date.text),
+      startTime: parsedStartTime,
+      stopTime: parsedStopTime,
       totalHours: useMiles
           ? 0
           : _calculateHours(start.text, stop.text) ??
@@ -688,6 +995,7 @@ class _EquipmentRowControllers {
   }
 
   void dispose() {
+    isActive.dispose();
     date.dispose();
     start.dispose();
     stop.dispose();
@@ -711,6 +1019,50 @@ double? _calculateHours(String startValue, String stopValue) {
   }
 
   return elapsedMinutes / 60;
+}
+
+double? _calculatePersonnelTotalHours(
+  String block1Start,
+  String block1Stop,
+  String block2Start,
+  String block2Stop,
+) {
+  final block1Hours = _calculateHours(block1Start, block1Stop);
+  final block2Hours = _calculateHours(block2Start, block2Stop);
+  if (block1Hours == null && block2Hours == null) return null;
+  return (block1Hours ?? 0) + (block2Hours ?? 0);
+}
+
+DateTime? _adjustOvernightStop(DateTime? start, DateTime? stop) {
+  if (start == null || stop == null) return stop;
+  if (stop.isBefore(start)) {
+    return stop.add(const Duration(days: 1));
+  }
+  return stop;
+}
+
+(DateTime?, DateTime?) _adjustSecondBlockAfterOvernightFirstBlock(
+  String firstStartValue,
+  String firstStopValue,
+  String secondStartValue,
+  DateTime? secondStart,
+  DateTime? secondStop,
+) {
+  final firstStartMinutes = _parseMilitaryMinutes(firstStartValue);
+  final firstStopMinutes = _parseMilitaryMinutes(firstStopValue);
+  final secondStartMinutes = _parseMilitaryMinutes(secondStartValue);
+  if (firstStartMinutes == null ||
+      firstStopMinutes == null ||
+      secondStartMinutes == null ||
+      firstStopMinutes >= firstStartMinutes ||
+      secondStartMinutes >= firstStartMinutes) {
+    return (secondStart, secondStop);
+  }
+
+  return (
+    secondStart?.add(const Duration(days: 1)),
+    secondStop?.add(const Duration(days: 1)),
+  );
 }
 
 double? _calculateMileage(String startValue, String stopValue) {
@@ -762,10 +1114,15 @@ class _PersonnelRowControllers {
   final total = TextEditingController();
   final notes = TextEditingController();
 
+  bool get hasPopulatedContent => name.text.trim().isNotEmpty;
+
   void recalculateTotal() {
-    final actualHours = _calculateHours(start.text, stop.text);
-    final rowHours =
-        actualHours ?? _calculateHours(guaranteeStart.text, guaranteeStop.text);
+    final rowHours = _calculatePersonnelTotalHours(
+      guaranteeStart.text,
+      guaranteeStop.text,
+      start.text,
+      stop.text,
+    );
     total.text = rowHours == null ? '' : _formatHours(rowHours);
   }
 
@@ -774,18 +1131,41 @@ class _PersonnelRowControllers {
     DateTime? Function(String value) parseDate,
     DateTime? Function(String timeValue, String dateValue) parseTime,
   ) {
+    final parsedGuaranteeStart = parseTime(guaranteeStart.text, date.text);
+    final parsedGuaranteeStop = _adjustOvernightStop(
+      parsedGuaranteeStart,
+      parseTime(guaranteeStop.text, date.text),
+    );
+    var parsedStart = parseTime(start.text, date.text);
+    var parsedStop = _adjustOvernightStop(
+      parsedStart,
+      parseTime(stop.text, date.text),
+    );
+    final adjustedSecondBlock = _adjustSecondBlockAfterOvernightFirstBlock(
+      guaranteeStart.text,
+      guaranteeStop.text,
+      start.text,
+      parsedStart,
+      parsedStop,
+    );
+    parsedStart = adjustedSecondBlock.$1;
+    parsedStop = adjustedSecondBlock.$2;
+    final totalBlockHours = _calculatePersonnelTotalHours(
+      guaranteeStart.text,
+      guaranteeStop.text,
+      start.text,
+      stop.text,
+    );
+
     return OF297PersonnelTimeEntry(
       id: id,
       date: parseDate(date.text),
       name: name.text.trim(),
-      guaranteeStartTime: parseTime(guaranteeStart.text, date.text),
-      guaranteeStopTime: parseTime(guaranteeStop.text, date.text),
-      startTime: parseTime(start.text, date.text),
-      stopTime: parseTime(stop.text, date.text),
-      totalHours: _calculateHours(start.text, stop.text) ??
-          _calculateHours(guaranteeStart.text, guaranteeStop.text) ??
-          double.tryParse(total.text.trim()) ??
-          0,
+      guaranteeStartTime: parsedGuaranteeStart,
+      guaranteeStopTime: parsedGuaranteeStop,
+      startTime: parsedStart,
+      stopTime: parsedStop,
+      totalHours: totalBlockHours ?? double.tryParse(total.text.trim()) ?? 0,
       notes: notes.text.trim(),
     );
   }
@@ -821,6 +1201,21 @@ class _EquipmentRowEditor extends StatelessWidget {
       tilePadding: EdgeInsets.zero,
       title: Text('Equipment row $rowNumber'),
       children: [
+        ValueListenableBuilder<bool>(
+          valueListenable: row.isActive,
+          builder: (context, isActive, _) {
+            return CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Apply global shift to this equipment row'),
+              value: isActive,
+              onChanged: readOnly
+                  ? null
+                  : (value) {
+                      row.isActive.value = value ?? false;
+                    },
+            );
+          },
+        ),
         _ResponsiveFields(
           children: [
             _DatePickerTextField(
@@ -1061,8 +1456,12 @@ class _MilitaryTimeField extends StatelessWidget {
   }
 
   String? _timeError(String value) {
-    if (value.isEmpty || value.length < 4) {
+    if (value.isEmpty) {
       return null;
+    }
+
+    if (value.length != 4) {
+      return 'Use HHMM';
     }
 
     final hour = int.tryParse(value.substring(0, 2));

@@ -32,6 +32,55 @@ class Of297PdfService {
     );
   }
 
+  Future<void> sharePdfs(List<File> files) async {
+    await SharePlus.instance.share(
+      ShareParams(
+        files: files.map((file) => XFile(file.path)).toList(),
+        text: 'OF-297 finalized shift ticket documents',
+      ),
+    );
+  }
+
+  Future<List<File>> savePdfFilesAs({
+    required List<Of297PdfFile> pdfFiles,
+  }) async {
+    if (pdfFiles.isEmpty) return [];
+    if (pdfFiles.length == 1) {
+      final file = await savePdfAs(
+        pdfBytes: pdfFiles.first.pdfBytes,
+        suggestedFileName: pdfFiles.first.fileName,
+      );
+      return file == null ? [] : [file];
+    }
+
+    if (!kIsWeb && _isDesktopPlatform) {
+      try {
+        final directoryPath = await getDirectoryPath();
+        if (directoryPath == null) return [];
+
+        final savedFiles = <File>[];
+        for (final pdfFile in pdfFiles) {
+          final safeFileName =
+              _ensurePdfExtension(_sanitizeFileName(pdfFile.fileName));
+          final file = File(
+            '$directoryPath${Platform.pathSeparator}$safeFileName',
+          );
+          savedFiles
+              .add(await file.writeAsBytes(pdfFile.pdfBytes, flush: true));
+        }
+        return savedFiles;
+      } on PlatformException {
+        return _savePdfFilesFallback(pdfFiles: pdfFiles);
+      } on MissingPluginException {
+        return _savePdfFilesFallback(pdfFiles: pdfFiles);
+      }
+    }
+
+    final savedFiles = await _savePdfFilesFallback(pdfFiles: pdfFiles);
+    await sharePdfs(savedFiles);
+    return savedFiles;
+  }
+
   Future<File?> savePdfAs({
     required Uint8List pdfBytes,
     required String suggestedFileName,
@@ -92,6 +141,21 @@ class Of297PdfService {
     return file.writeAsBytes(pdfBytes, flush: true);
   }
 
+  Future<List<File>> _savePdfFilesFallback({
+    required List<Of297PdfFile> pdfFiles,
+  }) async {
+    final savedFiles = <File>[];
+    final directory = await getApplicationDocumentsDirectory();
+    for (final pdfFile in pdfFiles) {
+      final safeFileName =
+          _ensurePdfExtension(_sanitizeFileName(pdfFile.fileName));
+      final file =
+          File('${directory.path}${Platform.pathSeparator}$safeFileName');
+      savedFiles.add(await file.writeAsBytes(pdfFile.pdfBytes, flush: true));
+    }
+    return savedFiles;
+  }
+
   String _sanitizeFileName(String value) {
     final sanitized = value
         .trim()
@@ -109,4 +173,14 @@ class Of297PdfService {
         defaultTargetPlatform == TargetPlatform.macOS ||
         defaultTargetPlatform == TargetPlatform.linux;
   }
+}
+
+class Of297PdfFile {
+  final String fileName;
+  final Uint8List pdfBytes;
+
+  const Of297PdfFile({
+    required this.fileName,
+    required this.pdfBytes,
+  });
 }

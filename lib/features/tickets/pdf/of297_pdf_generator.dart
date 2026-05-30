@@ -4,10 +4,10 @@ import 'dart:math' as math;
 
 import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
-import 'package:intl/intl.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:wildland_companion_v2/features/tickets/models/of297_signature.dart';
 import 'package:wildland_companion_v2/features/tickets/models/of297_shift_ticket.dart';
+import 'package:wildland_companion_v2/features/tickets/pdf/of297_export_document.dart';
 import 'package:wildland_companion_v2/features/tickets/pdf/of297_pdf_field_map.dart';
 
 /// Generates printable OF-297 PDFs from finalized ticket data.
@@ -21,6 +21,37 @@ class Of297PdfGenerator {
       throw StateError('Only finalized OF-297 tickets can be exported to PDF.');
     }
 
+    return _generatePdf(ticket,
+        exportDocument: buildOf297ExportDocuments(ticket).first);
+  }
+
+  Future<Uint8List> generatePreviewPdf(OF297ShiftTicket ticket) async {
+    return _generatePdf(ticket,
+        exportDocument: buildOf297ExportDocuments(ticket).first);
+  }
+
+  Future<Uint8List> generateFinalizedPdfForDocument(
+    OF297ShiftTicket ticket,
+    Of297ExportDocument exportDocument,
+  ) async {
+    if (!ticket.isFinalized) {
+      throw StateError('Only finalized OF-297 tickets can be exported to PDF.');
+    }
+
+    return _generatePdf(ticket, exportDocument: exportDocument);
+  }
+
+  Future<Uint8List> generatePreviewPdfForDocument(
+    OF297ShiftTicket ticket,
+    Of297ExportDocument exportDocument,
+  ) {
+    return _generatePdf(ticket, exportDocument: exportDocument);
+  }
+
+  Future<Uint8List> _generatePdf(
+    OF297ShiftTicket ticket, {
+    required Of297ExportDocument exportDocument,
+  }) async {
     final templateData =
         await rootBundle.load(Of297PdfFieldMap.templateAssetPath);
     final document = PdfDocument(
@@ -29,10 +60,10 @@ class Of297PdfGenerator {
 
     try {
       _fillTopSection(document, ticket);
-      _fillEquipmentRows(document, ticket);
-      _fillPersonnelRows(document, ticket);
+      _fillEquipmentRows(document, ticket, exportDocument);
+      _fillPersonnelRows(document, exportDocument);
       _fillBottomSection(document, ticket);
-      final signatureBoxes = _signatureBoxes(document);
+      final signatureBoxes = _signatureBoxes();
 
       // Flattening makes the exported billing record stable/read-only.
       // TODO: verify flattened output formatting with real agency billing workflows.
@@ -97,32 +128,39 @@ class Of297PdfGenerator {
     setCheckbox(document, Of297PdfFieldMap.rateMiles, ticket.rateIsMiles);
   }
 
-  void _fillEquipmentRows(PdfDocument document, OF297ShiftTicket ticket) {
-    for (var i = 0; i < ticket.equipmentEntries.length && i < 4; i++) {
+  void _fillEquipmentRows(
+    PdfDocument document,
+    OF297ShiftTicket ticket,
+    Of297ExportDocument exportDocument,
+  ) {
+    for (var i = 0; i < exportDocument.equipmentRows.length && i < 4; i++) {
       final row = i + 1;
-      final entry = ticket.equipmentEntries[i];
-      setTextField(
-          document, Of297PdfFieldMap.equipmentDate(row), _date(entry.date));
+      final exportRow = exportDocument.equipmentRows[i];
+      final entry = exportRow.source;
+
+      setCompactTextField(
+        document,
+        Of297PdfFieldMap.equipmentDate(row),
+        exportRow.date,
+      );
       setTextField(
         document,
         Of297PdfFieldMap.equipmentStart(row),
         ticket.rateIsMiles
             ? _nullableNumber(entry.mileageStart)
-            : _time(entry.startTime),
+            : exportRow.start,
       );
       setTextField(
         document,
         Of297PdfFieldMap.equipmentStop(row),
-        ticket.rateIsMiles
-            ? _nullableNumber(entry.mileageEnd)
-            : _time(entry.stopTime),
+        ticket.rateIsMiles ? _nullableNumber(entry.mileageEnd) : exportRow.stop,
       );
       setTextField(
         document,
         Of297PdfFieldMap.equipmentTotal(row),
         ticket.rateIsMiles
             ? _number(entry.totalMiles)
-            : _number(entry.totalHours),
+            : _number(exportRow.totalHours),
       );
       setTextField(
         document,
@@ -135,37 +173,45 @@ class Of297PdfGenerator {
     }
   }
 
-  void _fillPersonnelRows(PdfDocument document, OF297ShiftTicket ticket) {
-    for (var i = 0; i < ticket.personnelEntries.length && i < 4; i++) {
+  void _fillPersonnelRows(
+    PdfDocument document,
+    Of297ExportDocument exportDocument,
+  ) {
+    for (var i = 0; i < exportDocument.personnelRows.length && i < 4; i++) {
       final row = i + 1;
-      final entry = ticket.personnelEntries[i];
-      setTextField(
-          document, Of297PdfFieldMap.personnelDate(row), _date(entry.date));
+      final exportRow = exportDocument.personnelRows[i];
+      final entry = exportRow.source;
+
+      setCompactTextField(
+        document,
+        Of297PdfFieldMap.personnelDate(row),
+        exportRow.date,
+      );
       setTextField(document, Of297PdfFieldMap.personnelName(row), entry.name);
       setTextField(
         document,
         Of297PdfFieldMap.personnelStartOne(row),
-        _time(entry.guaranteeStartTime),
+        exportRow.block1Start,
       );
       setTextField(
         document,
         Of297PdfFieldMap.personnelStopOne(row),
-        _time(entry.guaranteeStopTime),
+        exportRow.block1Stop,
       );
       setTextField(
         document,
         Of297PdfFieldMap.personnelStartTwo(row),
-        _time(entry.startTime),
+        exportRow.block2Start,
       );
       setTextField(
         document,
         Of297PdfFieldMap.personnelStopTwo(row),
-        _time(entry.stopTime),
+        exportRow.block2Stop,
       );
       setTextField(
         document,
         Of297PdfFieldMap.personnelTotal(row),
-        _number(entry.totalHours),
+        _number(exportRow.totalHours),
       );
       setTextField(document, Of297PdfFieldMap.personnelNotes(row), entry.notes);
     }
@@ -189,16 +235,12 @@ class Of297PdfGenerator {
     );
   }
 
-  Map<String, Rect> _signatureBoxes(PdfDocument document) {
+  Map<String, Rect> _signatureBoxes() {
     return {
       Of297PdfFieldMap.contractorSignature:
-          _fieldByName(document, Of297PdfFieldMap.contractorSignature)
-                  ?.bounds ??
-              const Rect.fromLTWH(315, 345, 250, 42),
+          Of297SignatureBoxes.contractorRepresentative,
       Of297PdfFieldMap.supervisorSignature:
-          _fieldByName(document, Of297PdfFieldMap.supervisorSignature)
-                  ?.bounds ??
-              const Rect.fromLTWH(315, 372, 250, 42),
+          Of297SignatureBoxes.incidentSupervisor,
     };
   }
 
@@ -209,9 +251,6 @@ class Of297PdfGenerator {
   ) {
     final page = document.pages[0];
 
-    // TODO: fine-tune these coordinates after visual testing against the
-    // official OF297-24.pdf. Signature placement depends on PDF page coordinate
-    // bounds, and the debug helper should be used first if alignment drifts.
     final contractorSignature = ticket.contractorSignature;
     if (contractorSignature != null) {
       drawSignature(
@@ -250,11 +289,11 @@ class Of297PdfGenerator {
   }) {
     if (signature.signatureBytesBase64.isEmpty) return;
 
-    final imageBytes = _cropSignatureWhitespace(
+    final imageBytes = _prepareSignatureImage(
       base64Decode(signature.signatureBytesBase64),
     );
     final image = PdfBitmap(imageBytes);
-    const padding = 0.5;
+    const padding = 3.0;
     final target = Rect.fromLTWH(
       box.left + padding,
       box.top + padding,
@@ -263,10 +302,13 @@ class Of297PdfGenerator {
     );
     final imageRatio = image.width / image.height;
     final targetRatio = target.width / target.height;
-    final drawWidth =
+    final fittedWidth =
         imageRatio > targetRatio ? target.width : target.height * imageRatio;
-    final drawHeight =
+    final fittedHeight =
         imageRatio > targetRatio ? target.width / imageRatio : target.height;
+    const maxFill = 0.94;
+    final drawWidth = fittedWidth * maxFill;
+    final drawHeight = fittedHeight * maxFill;
     final drawRect = Rect.fromLTWH(
       target.left + (target.width - drawWidth) / 2,
       target.top + (target.height - drawHeight) / 2,
@@ -274,29 +316,10 @@ class Of297PdfGenerator {
       drawHeight,
     );
 
-    // Signature PNGs are captured from a touch canvas, then scaled down into a
-    // narrow official PDF cell. Drawing the same bitmap with tiny offsets keeps
-    // anti-aliased strokes readable without changing placement or the source
-    // signature data.
-    const strokeBoost = 0.65;
-    for (final offset in _signatureStrokeOffsets(strokeBoost)) {
-      page.graphics.drawImage(image, drawRect.shift(offset));
-    }
+    page.graphics.drawImage(image, drawRect);
   }
 
-  List<Offset> _signatureStrokeOffsets(double amount) {
-    return [
-      Offset.zero,
-      Offset(amount, 0),
-      Offset(-amount, 0),
-      Offset(0, amount),
-      Offset(0, -amount),
-      Offset(amount, amount),
-      Offset(-amount, -amount),
-    ];
-  }
-
-  Uint8List _cropSignatureWhitespace(Uint8List imageBytes) {
+  Uint8List _prepareSignatureImage(Uint8List imageBytes) {
     final decodedImage = img.decodePng(imageBytes);
     if (decodedImage == null) {
       return imageBytes;
@@ -337,6 +360,17 @@ class Of297PdfGenerator {
       height: cropBottom - cropTop + 1,
     );
 
+    for (var y = 0; y < croppedImage.height; y++) {
+      for (var x = 0; x < croppedImage.width; x++) {
+        final pixel = croppedImage.getPixel(x, y);
+        if (_isSignatureInk(pixel)) {
+          croppedImage.setPixelRgba(x, y, 0, 0, 0, pixel.a.toInt());
+        } else {
+          croppedImage.setPixelRgba(x, y, 0, 0, 0, 0);
+        }
+      }
+    }
+
     return Uint8List.fromList(img.encodePng(croppedImage));
   }
 
@@ -354,6 +388,28 @@ class Of297PdfGenerator {
 
     final field = _fieldByName(document, fieldName);
     if (field is PdfTextBoxField) {
+      field.text = value;
+    } else if (field == null) {
+      _warnMissingField(fieldName);
+    } else {
+      _warnWrongFieldType(fieldName, field);
+    }
+  }
+
+  void setCompactTextField(
+    PdfDocument document,
+    String fieldName,
+    String value,
+  ) {
+    if (value.isEmpty) return;
+
+    final field = _fieldByName(document, fieldName);
+    if (field is PdfTextBoxField) {
+      field.font = PdfStandardFont(
+        PdfFontFamily.helvetica,
+        value.contains('-') ? 6.4 : 7.5,
+      );
+      field.textAlignment = PdfTextAlignment.center;
       field.text = value;
     } else if (field == null) {
       _warnMissingField(fieldName);
@@ -413,16 +469,6 @@ class Of297PdfGenerator {
     );
   }
 
-  String _date(DateTime? value) {
-    if (value == null) return '';
-    return DateFormat('MM/dd/yyyy').format(value);
-  }
-
-  String _time(DateTime? value) {
-    if (value == null) return '';
-    return DateFormat('HHmm').format(value);
-  }
-
   String _number(double value) {
     if (value == 0) return '';
     return value.toStringAsFixed(value.truncateToDouble() == value ? 0 : 2);
@@ -432,4 +478,9 @@ class Of297PdfGenerator {
     if (value == null || value == 0) return '';
     return value.toStringAsFixed(value.truncateToDouble() == value ? 0 : 2);
   }
+}
+
+class Of297SignatureBoxes {
+  static const contractorRepresentative = Rect.fromLTWH(318, 338, 244, 32);
+  static const incidentSupervisor = Rect.fromLTWH(318, 365, 244, 32);
 }
