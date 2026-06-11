@@ -44,6 +44,7 @@ dependencies:
   pdf: ^3.11.3
   printing: ^5.14.2
   syncfusion_flutter_pdf: ^29.2.11
+  syncfusion_flutter_pdfviewer: ^29.2.11
   image: ^4.8.0
 
   # Signature pad
@@ -72,6 +73,7 @@ flutter:
   assets:
     - assets/images/
     - assets/OF297/OF297-24.pdf
+    - assets/CTR/CTR_Fillable.pdf
 
   # Example custom fonts later
   # fonts:

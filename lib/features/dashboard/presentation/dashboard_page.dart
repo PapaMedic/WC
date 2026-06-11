@@ -5,7 +5,8 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import 'package:wildland_companion_v2/app/app_router.dart';
-import 'package:wildland_companion_v2/core/widgets/topo_dashboard_card.dart';
+import 'package:wildland_companion_v2/app/theme/app_colors.dart';
+import 'package:wildland_companion_v2/core/widgets/tactical_card.dart';
 import 'package:wildland_companion_v2/features/apparatus/data/apparatus_repository.dart';
 import 'package:wildland_companion_v2/features/apparatus/models/apparatus.dart';
 import 'package:wildland_companion_v2/features/incidents/data/incident_repository.dart';
@@ -115,10 +116,12 @@ class _DashboardPageState extends State<DashboardPage> {
               timeText: timeText,
             ),
             const SizedBox(height: 18),
-            TopoDashboardCard(
+            TacticalCard(
               icon: Icons.local_fire_department,
               title: 'Current Incident',
-              accentLabel: _selectedIncident?.displayStatus ?? 'Not Selected',
+              trailing: _StatusPill(
+                label: _selectedIncident?.displayStatus ?? 'Not Selected',
+              ),
               child: _selectedIncident == null
                   ? const _EmptyDashboardText(
                       message: 'No current incident selected.',
@@ -173,11 +176,12 @@ class _DashboardPageState extends State<DashboardPage> {
                     },
             ),
             const SizedBox(height: 14),
-            TopoDashboardCard(
+            TacticalCard(
               icon: Icons.fire_truck,
               title: 'Selected Apparatus',
-              accentLabel:
-                  _selectedApparatus == null ? 'Not Selected' : 'Ready',
+              trailing: _StatusPill(
+                label: _selectedApparatus == null ? 'Not Selected' : 'Ready',
+              ),
               child: _selectedApparatus == null
                   ? const _EmptyDashboardText(
                       message: 'No apparatus selected.',
@@ -209,10 +213,12 @@ class _DashboardPageState extends State<DashboardPage> {
                     ),
             ),
             const SizedBox(height: 14),
-            TopoDashboardCard(
+            TacticalCard(
               icon: Icons.groups,
               title: 'Assigned Crew',
-              accentLabel: '${_assignedPersonnel.length} Assigned',
+              trailing: _StatusPill(
+                label: '${_assignedPersonnel.length} Assigned',
+              ),
               child: _assignedPersonnel.isEmpty
                   ? const _EmptyDashboardText(
                       message: 'No personnel assigned.',
@@ -290,10 +296,13 @@ class _TicketCountsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final card = TopoDashboardCard(
+    return TacticalCard(
       icon: Icons.receipt_long_outlined,
       title: 'OF-297 Tickets',
-      accentLabel: hasSelectedIncident ? 'Selected Incident' : 'Not Selected',
+      trailing: _StatusPill(
+        label: hasSelectedIncident ? 'Selected Incident' : 'Not Selected',
+      ),
+      onTap: onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -302,7 +311,7 @@ class _TicketCountsCard extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             maxLines: 1,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: TopoDashboardCard.text,
+                  color: TacticalCard.text,
                   fontWeight: FontWeight.w800,
                 ),
           ),
@@ -331,16 +340,6 @@ class _TicketCountsCard extends StatelessWidget {
         ],
       ),
     );
-
-    if (onTap == null) {
-      return card;
-    }
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(26),
-      child: card,
-    );
   }
 }
 
@@ -361,7 +360,7 @@ class _TicketCountMetric extends StatelessWidget {
       children: [
         Icon(
           icon,
-          color: TopoDashboardCard.accent,
+          color: TacticalCard.accent,
           size: 24,
         ),
         const SizedBox(width: 10),
@@ -372,7 +371,7 @@ class _TicketCountMetric extends StatelessWidget {
               Text(
                 value,
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      color: TopoDashboardCard.text,
+                      color: TacticalCard.text,
                       fontWeight: FontWeight.w900,
                     ),
               ),
@@ -381,13 +380,46 @@ class _TicketCountMetric extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 maxLines: 1,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: TopoDashboardCard.muted,
+                      color: TacticalCard.muted,
                     ),
               ),
             ],
           ),
         ),
       ],
+    );
+  }
+}
+
+class _StatusPill extends StatelessWidget {
+  final String label;
+
+  const _StatusPill({
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 130),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: AppColors.primaryAccent.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: AppColors.primaryAccent.withValues(alpha: 0.38),
+        ),
+      ),
+      child: Text(
+        label,
+        overflow: TextOverflow.ellipsis,
+        maxLines: 1,
+        style: const TextStyle(
+          color: AppColors.primaryAccent,
+          fontSize: 11,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
     );
   }
 }

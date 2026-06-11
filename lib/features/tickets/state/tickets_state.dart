@@ -170,6 +170,7 @@ class TicketsState extends ChangeNotifier {
       contractorName: sourceTicket.contractorName,
       contractorAddress: sourceTicket.contractorAddress,
       contractorPhone: sourceTicket.contractorPhone,
+      ctrOfficeResponsibleForFire: sourceTicket.ctrOfficeResponsibleForFire,
       equipmentMakeModel: sourceTicket.equipmentMakeModel,
       equipmentType: sourceTicket.equipmentType,
       serialVinNumber: sourceTicket.serialVinNumber,

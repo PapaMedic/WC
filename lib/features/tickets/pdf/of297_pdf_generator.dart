@@ -9,6 +9,7 @@ import 'package:wildland_companion_v2/features/tickets/models/of297_signature.da
 import 'package:wildland_companion_v2/features/tickets/models/of297_shift_ticket.dart';
 import 'package:wildland_companion_v2/features/tickets/pdf/of297_export_document.dart';
 import 'package:wildland_companion_v2/features/tickets/pdf/of297_pdf_field_map.dart';
+import 'package:wildland_companion_v2/features/tickets/pdf/pdf_byte_utils.dart';
 
 /// Generates printable OF-297 PDFs from finalized ticket data.
 ///
@@ -54,8 +55,9 @@ class Of297PdfGenerator {
   }) async {
     final templateData =
         await rootBundle.load(Of297PdfFieldMap.templateAssetPath);
+    final templateBytes = pdfBytesFromByteData(templateData);
     final document = PdfDocument(
-      inputBytes: templateData.buffer.asUint8List(),
+      inputBytes: templateBytes,
     );
 
     try {
@@ -71,8 +73,12 @@ class Of297PdfGenerator {
 
       _drawSignatures(document, ticket, signatureBoxes);
 
-      final bytes = document.saveSync();
-      return Uint8List.fromList(bytes);
+      final outputBytes = Uint8List.fromList(await document.save());
+      validatePdfBytes(
+        outputBytes,
+        label: 'OF-297 ${exportDocument.fileName}',
+      );
+      return outputBytes;
     } finally {
       document.dispose();
     }

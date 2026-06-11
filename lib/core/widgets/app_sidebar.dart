@@ -5,15 +5,82 @@ import 'package:wildland_companion_v2/app/theme/app_spacing.dart';
 class AppSidebar extends StatelessWidget {
   final int currentIndex;
   final Function(int) onNavigate;
+  final bool respectSafeArea;
 
   const AppSidebar({
     super.key,
     required this.currentIndex,
     required this.onNavigate,
+    this.respectSafeArea = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final sidebarContent = Column(
+      children: [
+        _buildHeader(context),
+        Container(height: 1, color: const Color(0xFF1E261E)),
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+            children: [
+              _NavItem(
+                index: 0,
+                title: 'Dashboard',
+                icon: Icons.dashboard_outlined,
+                currentIndex: currentIndex,
+                onNavigate: onNavigate,
+              ),
+              _NavItem(
+                index: 1,
+                title: 'Personnel',
+                icon: Icons.people_outline,
+                currentIndex: currentIndex,
+                onNavigate: onNavigate,
+              ),
+              _NavItem(
+                index: 2,
+                title: 'Apparatus',
+                icon: Icons.fire_truck,
+                currentIndex: currentIndex,
+                onNavigate: onNavigate,
+              ),
+              _NavItem(
+                index: 3,
+                title: 'Incidents',
+                icon: Icons.warning_amber_outlined,
+                currentIndex: currentIndex,
+                onNavigate: onNavigate,
+              ),
+              _NavItem(
+                index: 4,
+                title: 'Tickets / OF-297',
+                icon: Icons.receipt_long_outlined,
+                currentIndex: currentIndex,
+                onNavigate: onNavigate,
+              ),
+              _NavItem(
+                index: 5,
+                title: 'Fire Map',
+                icon: Icons.map_outlined,
+                currentIndex: currentIndex,
+                onNavigate: onNavigate,
+              ),
+              _NavItem(
+                index: 6,
+                title: 'Field Calculator',
+                icon: Icons.calculate_outlined,
+                currentIndex: currentIndex,
+                onNavigate: onNavigate,
+              ),
+            ],
+          ),
+        ),
+        Container(height: 1, color: const Color(0xFF1E261E)),
+        _buildFooter(context),
+      ],
+    );
+
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -23,70 +90,7 @@ class AppSidebar extends StatelessWidget {
         ),
         border: Border(right: BorderSide(color: Color(0xFF2A2F2A), width: 1)),
       ),
-      child: Column(
-        children: [
-          _buildHeader(context),
-          Container(height: 1, color: const Color(0xFF1E261E)),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-              children: [
-                _NavItem(
-                  index: 0,
-                  title: 'Dashboard',
-                  icon: Icons.dashboard_outlined,
-                  currentIndex: currentIndex,
-                  onNavigate: onNavigate,
-                ),
-                _NavItem(
-                  index: 1,
-                  title: 'Personnel',
-                  icon: Icons.people_outline,
-                  currentIndex: currentIndex,
-                  onNavigate: onNavigate,
-                ),
-                _NavItem(
-                  index: 2,
-                  title: 'Apparatus',
-                  icon: Icons.fire_truck,
-                  currentIndex: currentIndex,
-                  onNavigate: onNavigate,
-                ),
-                _NavItem(
-                  index: 3,
-                  title: 'Incidents',
-                  icon: Icons.warning_amber_outlined,
-                  currentIndex: currentIndex,
-                  onNavigate: onNavigate,
-                ),
-                _NavItem(
-                  index: 4,
-                  title: 'Tickets / OF-297',
-                  icon: Icons.receipt_long_outlined,
-                  currentIndex: currentIndex,
-                  onNavigate: onNavigate,
-                ),
-                _NavItem(
-                  index: 5,
-                  title: 'Fire Map',
-                  icon: Icons.map_outlined,
-                  currentIndex: currentIndex,
-                  onNavigate: onNavigate,
-                ),
-                _NavItem(
-                  index: 6,
-                  title: 'Field Calculator',
-                  icon: Icons.calculate_outlined,
-                  currentIndex: currentIndex,
-                  onNavigate: onNavigate,
-                ),
-              ],
-            ),
-          ),
-          Container(height: 1, color: const Color(0xFF1E261E)),
-          _buildFooter(context),
-        ],
-      ),
+      child: respectSafeArea ? SafeArea(child: sidebarContent) : sidebarContent,
     );
   }
 
@@ -241,17 +245,15 @@ class _NavItem extends StatelessWidget {
               dense: true,
               leading: Icon(
                 icon,
-                color: isSelected
-                    ? AppColors.primaryAccent
-                    : AppColors.textMuted,
+                color:
+                    isSelected ? AppColors.primaryAccent : AppColors.textMuted,
                 size: 20,
               ),
               title: Text(
                 title,
                 style: TextStyle(
-                  color: isSelected
-                      ? AppColors.textPrimary
-                      : AppColors.textMuted,
+                  color:
+                      isSelected ? AppColors.textPrimary : AppColors.textMuted,
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                   fontSize: 13,
                 ),

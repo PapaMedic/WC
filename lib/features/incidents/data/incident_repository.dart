@@ -69,6 +69,29 @@ class IncidentRepository {
     await saveAllIncidents(updatedList);
   }
 
+  Future<void> updateIncidentSourceDetails(Incident updatedIncident) async {
+    final incidents = await getAllIncidents();
+
+    final updatedList = incidents.map((incident) {
+      if (incident.id == updatedIncident.id) {
+        return incident.copyWith(
+          incidentName: updatedIncident.incidentName,
+          source: updatedIncident.source,
+          sourceIrwinId: updatedIncident.sourceIrwinId,
+          sourceStatus: updatedIncident.sourceStatus,
+          acres: updatedIncident.acres,
+          containmentPercent: updatedIncident.containmentPercent,
+          jurisdiction: updatedIncident.jurisdiction,
+          agency: updatedIncident.agency,
+          notes: updatedIncident.notes,
+        );
+      }
+      return incident;
+    }).toList();
+
+    await saveAllIncidents(updatedList);
+  }
+
   Future<void> deleteIncident(String id) async {
     final incidents = await getAllIncidents();
 

@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:intl/intl.dart';
@@ -29,14 +32,19 @@ class _FireMapPageState extends State<FireMapPage> {
   final Uuid _uuid = const Uuid();
 
   List<FireIncident> _incidents = [];
-  FireIncident? _selectedIncident;
+  List<FireIncident> _filteredIncidents = [];
+  List<_MarkerItem> _markerItems = [];
+  final ValueNotifier<FireIncident?> _selectedIncidentNotifier =
+      ValueNotifier<FireIncident?>(null);
+  final ValueNotifier<bool> _isCreatingIncidentNotifier =
+      ValueNotifier<bool>(false);
   FireMapFeedStatus _feedStatus = FireMapFeedStatus.live;
   DateTime? _lastUpdated;
   String? _errorMessage;
   bool _isLoadingIncidents = true;
-  bool _isCreatingIncident = false;
-  bool _bottomSheetOpen = false;
   bool _showRxBurns = true;
+  Timer? _mapUpdateDebounce;
+  MapCamera? _latestCamera;
 
   List<FireIncident> get _visibleIncidents {
     if (_showRxBurns) return _incidents;
@@ -49,13 +57,37 @@ class _FireMapPageState extends State<FireMapPage> {
     _loadIncidents();
   }
 
-  Future<void> _loadIncidents() async {
+  @override
+  void dispose() {
+    _mapUpdateDebounce?.cancel();
+    _selectedIncidentNotifier.dispose();
+    _isCreatingIncidentNotifier.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadIncidents({bool forceRefresh = false}) async {
     setState(() {
       _isLoadingIncidents = true;
       _errorMessage = null;
     });
 
     try {
+      if (!forceRefresh) {
+        final cached = await _service.loadCachedIncidents();
+        if (cached != null) {
+          if (!mounted) return;
+          setState(() {
+            _incidents = cached.data;
+            _feedStatus = FireMapFeedStatus.cached;
+            _lastUpdated = cached.lastUpdated;
+            _isLoadingIncidents = false;
+          });
+          _refreshVisibleMarkers();
+          _fitIncidentMarkers();
+          return;
+        }
+      }
+
       final result = await _service.fetchActiveIncidents();
       if (!mounted) return;
       setState(() {
@@ -66,11 +98,14 @@ class _FireMapPageState extends State<FireMapPage> {
         _errorMessage = result.message;
         _isLoadingIncidents = false;
       });
+      _refreshVisibleMarkers();
       _fitIncidentMarkers();
     } catch (error) {
       if (!mounted) return;
       setState(() {
         _incidents = [];
+        _filteredIncidents = [];
+        _markerItems = [];
         _feedStatus = FireMapFeedStatus.offline;
         _errorMessage =
             'Failed to fetch active fires and no cached incident data is available. $error';
@@ -79,51 +114,15 @@ class _FireMapPageState extends State<FireMapPage> {
     }
   }
 
-  Future<void> _selectIncident(FireIncident incident) async {
-    setState(() {
-      _selectedIncident = incident;
-    });
-
-    _mapController.move(LatLng(incident.latitude, incident.longitude), 8);
-    _showIncidentSheet();
-  }
-
-  void _showIncidentSheet({bool replace = false}) {
-    final incident = _selectedIncident;
-    if (incident == null || !mounted) return;
-    if (replace && _bottomSheetOpen) {
-      Navigator.of(context).pop();
-      _bottomSheetOpen = false;
-      Future<void>.delayed(const Duration(milliseconds: 180), () {
-        if (mounted && _selectedIncident?.id == incident.id) {
-          _showIncidentSheet();
-        }
-      });
-      return;
-    }
-
-    _bottomSheetOpen = true;
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return FireIncidentBottomSheet(
-          incident: incident,
-          feedStatus: _feedStatus,
-          lastUpdated: _lastUpdated,
-          isCreatingIncident: _isCreatingIncident,
-          onCreateLocalIncident: _createLocalIncident,
-        );
-      },
-    ).whenComplete(() => _bottomSheetOpen = false);
+  void _selectIncident(FireIncident incident) {
+    _selectedIncidentNotifier.value = incident;
   }
 
   Future<void> _createLocalIncident() async {
-    final fire = _selectedIncident;
-    if (fire == null || _isCreatingIncident) return;
+    final fire = _selectedIncidentNotifier.value;
+    if (fire == null || _isCreatingIncidentNotifier.value) return;
 
-    setState(() => _isCreatingIncident = true);
+    _isCreatingIncidentNotifier.value = true;
 
     try {
       final existing = fire.irwinId == null
@@ -132,66 +131,44 @@ class _FireMapPageState extends State<FireMapPage> {
       if (!mounted) return;
 
       if (existing != null) {
-        Navigator.of(context).pop();
-        final shouldSelect = await _showDuplicateDialog(existing);
-        if (shouldSelect == true) {
-          await _incidentRepository.selectIncident(existing.id);
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('${existing.incidentName} selected.')),
-          );
-        }
+        await _incidentRepository.updateIncidentSourceDetails(
+          _incidentFromFire(fire, existing.id, existing.createdAt),
+        );
+        await _incidentRepository.selectIncident(existing.id);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Updated local incident: ${fire.name}')),
+        );
         return;
       }
 
-      final incident = Incident(
-        id: _uuid.v4(),
-        incidentName: fire.name,
-        incidentNumber: '',
-        resourceOrderNumber: '',
-        financialCode: '',
-        createdAt: DateTime.now(),
-        source: 'NIFC/WFIGS',
-        sourceIrwinId: fire.irwinId,
-        sourceStatus: incidentStatusLabel(fire),
-        acres: _formatNumber(fire.acres),
-        containmentPercent: _formatNumber(fire.containmentPercent),
-        jurisdiction: fire.jurisdiction,
-        agency: fire.agency,
-        notes: _buildIncidentNotes(fire),
-      );
+      final incident = _incidentFromFire(fire, _uuid.v4(), DateTime.now());
       await _incidentRepository.addIncident(incident);
       if (!mounted) return;
-      Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Created local incident: ${fire.name}')),
       );
     } finally {
-      if (mounted) setState(() => _isCreatingIncident = false);
+      if (mounted) _isCreatingIncidentNotifier.value = false;
     }
   }
 
-  Future<bool?> _showDuplicateDialog(Incident existing) {
-    return showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Incident Already Exists'),
-          content: Text(
-            '${existing.incidentName} already exists locally from this fire source record.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Close'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Select Existing'),
-            ),
-          ],
-        );
-      },
+  Incident _incidentFromFire(FireIncident fire, String id, DateTime createdAt) {
+    return Incident(
+      id: id,
+      incidentName: fire.name,
+      incidentNumber: '',
+      resourceOrderNumber: '',
+      financialCode: '',
+      createdAt: createdAt,
+      source: 'NIFC/WFIGS',
+      sourceIrwinId: fire.irwinId,
+      sourceStatus: incidentStatusLabel(fire),
+      acres: _formatNumber(fire.acres),
+      containmentPercent: _formatNumber(fire.containmentPercent),
+      jurisdiction: fire.jurisdiction,
+      agency: fire.agency,
+      notes: _buildIncidentNotes(fire),
     );
   }
 
@@ -235,6 +212,88 @@ class _FireMapPageState extends State<FireMapPage> {
     });
   }
 
+  void _onMapPositionChanged(MapCamera camera, bool hasGesture) {
+    _latestCamera = camera;
+    _scheduleVisibleMarkerUpdate();
+  }
+
+  void _refreshVisibleMarkers() {
+    _applyVisibleMarkers(_latestCamera);
+  }
+
+  void _scheduleVisibleMarkerUpdate() {
+    _mapUpdateDebounce?.cancel();
+    _mapUpdateDebounce = Timer(const Duration(milliseconds: 220), () {
+      if (!mounted) return;
+      _applyVisibleMarkers(_latestCamera);
+    });
+  }
+
+  void _applyVisibleMarkers(MapCamera? camera) {
+    final source = _visibleIncidents;
+    final bounded = camera == null
+        ? source.take(350).toList()
+        : source
+            .where((incident) => _boundsContain(
+                  camera.visibleBounds,
+                  incident.latitude,
+                  incident.longitude,
+                ))
+            .take(450)
+            .toList();
+
+    final items = camera != null && camera.zoom < 5.3
+        ? _clusterIncidents(bounded, camera.zoom)
+        : bounded.map(_MarkerItem.incident).toList();
+
+    setState(() {
+      _filteredIncidents = bounded;
+      _markerItems = items;
+    });
+  }
+
+  bool _boundsContain(LatLngBounds bounds, double latitude, double longitude) {
+    return latitude >= bounds.south &&
+        latitude <= bounds.north &&
+        longitude >= bounds.west &&
+        longitude <= bounds.east;
+  }
+
+  List<_MarkerItem> _clusterIncidents(
+      List<FireIncident> incidents, double zoom) {
+    if (incidents.length < 80) {
+      return incidents.map(_MarkerItem.incident).toList();
+    }
+
+    final cellSize = zoom < 4.2 ? 4.0 : 2.0;
+    final buckets = <String, List<FireIncident>>{};
+    for (final incident in incidents) {
+      final latBucket = (incident.latitude / cellSize).floor();
+      final lonBucket = (incident.longitude / cellSize).floor();
+      final key = '$latBucket:$lonBucket';
+      buckets.putIfAbsent(key, () => <FireIncident>[]).add(incident);
+    }
+
+    return buckets.values.map((bucket) {
+      if (bucket.length == 1) return _MarkerItem.incident(bucket.first);
+
+      final latitude =
+          bucket.fold<double>(0, (sum, incident) => sum + incident.latitude) /
+              bucket.length;
+      final longitude =
+          bucket.fold<double>(0, (sum, incident) => sum + incident.longitude) /
+              bucket.length;
+      final hasActive = bucket.any((incident) => !isResolved(incident));
+
+      return _MarkerItem.cluster(
+        latitude: latitude,
+        longitude: longitude,
+        count: bucket.length,
+        hasActive: hasActive,
+      );
+    }).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<bool>(
@@ -248,18 +307,20 @@ class _FireMapPageState extends State<FireMapPage> {
             children: [
               FlutterMap(
                 mapController: _mapController,
-                options: const MapOptions(
-                  initialCenter: LatLng(39.5, -98.35),
+                options: MapOptions(
+                  initialCenter: const LatLng(39.5, -98.35),
                   initialZoom: 4,
                   minZoom: 3,
                   maxZoom: 15,
+                  keepAlive: true,
+                  onMapReady: _refreshVisibleMarkers,
+                  onPositionChanged: _onMapPositionChanged,
                 ),
                 children: [
                   TileLayer(
                     urlTemplate:
                         'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                     userAgentPackageName: 'wildland_companion_v2',
-                    tileBuilder: _darkenTile,
                   ),
                   MarkerLayer(markers: _buildMarkers()),
                 ],
@@ -280,21 +341,14 @@ class _FireMapPageState extends State<FireMapPage> {
                       rxCount:
                           _incidents.where((incident) => incident.isRx).length,
                       onChanged: (value) {
-                        final shouldCloseSheet =
-                            _selectedIncident?.isRx == true &&
-                                !value &&
-                                _bottomSheetOpen;
                         setState(() {
                           _showRxBurns = value;
-                          if (_selectedIncident?.isRx == true && !value) {
-                            _selectedIncident = null;
-                          }
                         });
-                        if (shouldCloseSheet) {
-                          Navigator.of(context).pop();
-                          _bottomSheetOpen = false;
+                        final selected = _selectedIncidentNotifier.value;
+                        if (selected?.isRx == true && !value) {
+                          _selectedIncidentNotifier.value = null;
                         }
-                        _fitIncidentMarkers();
+                        _refreshVisibleMarkers();
                       },
                     ),
                   ],
@@ -308,7 +362,9 @@ class _FireMapPageState extends State<FireMapPage> {
                     _MapButton(
                       icon: Icons.refresh,
                       tooltip: 'Refresh',
-                      onPressed: _isLoadingIncidents ? null : _loadIncidents,
+                      onPressed: _isLoadingIncidents
+                          ? null
+                          : () => _loadIncidents(forceRefresh: true),
                     ),
                     const SizedBox(height: 8),
                     _MapButton(
@@ -331,6 +387,13 @@ class _FireMapPageState extends State<FireMapPage> {
                       ? (_errorMessage ?? 'No active fires found.')
                       : 'No active fires match the current filters.',
                 ),
+              if (!_isLoadingIncidents &&
+                  _visibleIncidents.isNotEmpty &&
+                  _filteredIncidents.isEmpty)
+                const _MapBanner(
+                  icon: Icons.travel_explore,
+                  message: 'No fires in the current map view.',
+                ),
               if (_errorMessage != null && _incidents.isNotEmpty)
                 Positioned(
                   left: 14,
@@ -338,6 +401,13 @@ class _FireMapPageState extends State<FireMapPage> {
                   bottom: 14,
                   child: _InlineNotice(message: _errorMessage!),
                 ),
+              _SelectedIncidentCard(
+                selectedIncidentNotifier: _selectedIncidentNotifier,
+                isCreatingIncidentNotifier: _isCreatingIncidentNotifier,
+                feedStatus: status,
+                lastUpdated: _lastUpdated,
+                onCreateLocalIncident: _createLocalIncident,
+              ),
             ],
           ),
         );
@@ -346,61 +416,159 @@ class _FireMapPageState extends State<FireMapPage> {
   }
 
   List<Marker> _buildMarkers() {
-    return _visibleIncidents.map((incident) {
-      final isSelected = _selectedIncident?.id == incident.id;
+    return _markerItems.map((item) {
+      final incident = item.incident;
       return Marker(
-        point: LatLng(incident.latitude, incident.longitude),
-        width: isSelected ? 170 : 54,
-        height: isSelected ? 92 : 54,
+        point: LatLng(item.latitude, item.longitude),
+        width: item.isCluster ? 42 : 38,
+        height: item.isCluster ? 42 : 38,
         child: Tooltip(
-          message: incident.name,
+          message: item.isCluster
+              ? '${item.count} incidents'
+              : incident?.name ?? 'Fire incident',
           child: GestureDetector(
-            onTap: () => _selectIncident(incident),
+            onTap: incident == null ? null : () => _selectIncident(incident),
             child: Center(
-              child: FireMarker(
-                isSelected: isSelected,
-                isRx: incident.isRx,
-                isResolved: isResolved(incident),
-                isCached: _feedStatus == FireMapFeedStatus.cached,
-                acres: incident.acres,
-                label: incident.name,
-              ),
+              child: item.isCluster
+                  ? _ClusterMarker(
+                      count: item.count,
+                      hasActive: item.hasActive,
+                    )
+                  : FireMarker(
+                      isRx: incident!.isRx,
+                      isResolved: isResolved(incident),
+                      isCached: _feedStatus == FireMapFeedStatus.cached,
+                      acres: incident.acres,
+                    ),
             ),
           ),
         ),
       );
     }).toList();
   }
+}
 
-  Widget _darkenTile(
-    BuildContext context,
-    Widget tileWidget,
-    TileImage tile,
-  ) {
-    return ColorFiltered(
-      colorFilter: const ColorFilter.matrix([
-        0.42,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0.46,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0.40,
-        0,
-        0,
-        0,
-        0,
-        0,
-        1,
-        0,
-      ]),
-      child: tileWidget,
+class _MarkerItem {
+  final FireIncident? incident;
+  final double latitude;
+  final double longitude;
+  final int count;
+  final bool hasActive;
+
+  const _MarkerItem._({
+    required this.incident,
+    required this.latitude,
+    required this.longitude,
+    required this.count,
+    required this.hasActive,
+  });
+
+  bool get isCluster => incident == null;
+
+  factory _MarkerItem.incident(FireIncident incident) {
+    return _MarkerItem._(
+      incident: incident,
+      latitude: incident.latitude,
+      longitude: incident.longitude,
+      count: 1,
+      hasActive: !isResolved(incident),
+    );
+  }
+
+  factory _MarkerItem.cluster({
+    required double latitude,
+    required double longitude,
+    required int count,
+    required bool hasActive,
+  }) {
+    return _MarkerItem._(
+      incident: null,
+      latitude: latitude,
+      longitude: longitude,
+      count: count,
+      hasActive: hasActive,
+    );
+  }
+}
+
+class _ClusterMarker extends StatelessWidget {
+  final int count;
+  final bool hasActive;
+
+  const _ClusterMarker({
+    required this.count,
+    required this.hasActive,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = hasActive ? AppColors.primaryAccent : const Color(0xFF767B72);
+    final displayCount = math.min(count, 999);
+
+    return RepaintBoundary(
+      child: Container(
+        width: 40,
+        height: 40,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: hasActive ? const Color(0xFF331409) : const Color(0xFF242722),
+          shape: BoxShape.circle,
+          border: Border.all(color: color, width: 1.5),
+        ),
+        child: Text(
+          displayCount == count ? '$count' : '999+',
+          style: TextStyle(
+            color: color,
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SelectedIncidentCard extends StatelessWidget {
+  final ValueNotifier<FireIncident?> selectedIncidentNotifier;
+  final ValueNotifier<bool> isCreatingIncidentNotifier;
+  final FireMapFeedStatus feedStatus;
+  final DateTime? lastUpdated;
+  final VoidCallback onCreateLocalIncident;
+
+  const _SelectedIncidentCard({
+    required this.selectedIncidentNotifier,
+    required this.isCreatingIncidentNotifier,
+    required this.feedStatus,
+    required this.lastUpdated,
+    required this.onCreateLocalIncident,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: 0,
+      child: ValueListenableBuilder<FireIncident?>(
+        valueListenable: selectedIncidentNotifier,
+        builder: (context, incident, child) {
+          if (incident == null) return const SizedBox.shrink();
+
+          return ValueListenableBuilder<bool>(
+            valueListenable: isCreatingIncidentNotifier,
+            builder: (context, isCreatingIncident, child) {
+              return FireIncidentDetailCard(
+                incident: incident,
+                feedStatus: feedStatus,
+                lastUpdated: lastUpdated,
+                isCreatingIncident: isCreatingIncident,
+                onCreateLocalIncident: onCreateLocalIncident,
+                onClose: () => selectedIncidentNotifier.value = null,
+              );
+            },
+          );
+        },
+      ),
     );
   }
 }

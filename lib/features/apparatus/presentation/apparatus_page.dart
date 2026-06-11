@@ -150,7 +150,6 @@ class _ApparatusPageState extends State<ApparatusPage> {
                           ? Icons.check_circle
                           : Icons.fire_truck,
                     ),
-                    
                     title: Text(apparatus.equipmentMakeModel),
                     subtitle: Text(
                       '${apparatus.equipmentType}\n'

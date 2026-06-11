@@ -20,6 +20,7 @@ class OF297ShiftTicket {
   final String contractorName;
   final String contractorAddress;
   final String contractorPhone;
+  final String ctrOfficeResponsibleForFire;
   final String equipmentMakeModel;
   final String equipmentType;
   final String serialVinNumber;
@@ -58,6 +59,7 @@ class OF297ShiftTicket {
     this.contractorName = '',
     this.contractorAddress = '',
     this.contractorPhone = '',
+    this.ctrOfficeResponsibleForFire = '',
     this.equipmentMakeModel = '',
     this.equipmentType = '',
     this.serialVinNumber = '',
@@ -99,6 +101,7 @@ class OF297ShiftTicket {
         'contractorName': contractorName,
         'contractorAddress': contractorAddress,
         'contractorPhone': contractorPhone,
+        'ctrOfficeResponsibleForFire': ctrOfficeResponsibleForFire,
         'equipmentMakeModel': equipmentMakeModel,
         'equipmentType': equipmentType,
         'serialVinNumber': serialVinNumber,
@@ -141,6 +144,7 @@ class OF297ShiftTicket {
       contractorName: json['contractorName'] ?? '',
       contractorAddress: json['contractorAddress'] ?? '',
       contractorPhone: json['contractorPhone'] ?? '',
+      ctrOfficeResponsibleForFire: json['ctrOfficeResponsibleForFire'] ?? '',
       equipmentMakeModel: json['equipmentMakeModel'] ?? '',
       equipmentType: json['equipmentType'] ?? '',
       serialVinNumber: json['serialVinNumber'] ?? '',
@@ -201,6 +205,7 @@ class OF297ShiftTicket {
     String? contractorName,
     String? contractorAddress,
     String? contractorPhone,
+    String? ctrOfficeResponsibleForFire,
     String? equipmentMakeModel,
     String? equipmentType,
     String? serialVinNumber,
@@ -238,6 +243,8 @@ class OF297ShiftTicket {
       contractorName: contractorName ?? this.contractorName,
       contractorAddress: contractorAddress ?? this.contractorAddress,
       contractorPhone: contractorPhone ?? this.contractorPhone,
+      ctrOfficeResponsibleForFire:
+          ctrOfficeResponsibleForFire ?? this.ctrOfficeResponsibleForFire,
       equipmentMakeModel: equipmentMakeModel ?? this.equipmentMakeModel,
       equipmentType: equipmentType ?? this.equipmentType,
       serialVinNumber: serialVinNumber ?? this.serialVinNumber,

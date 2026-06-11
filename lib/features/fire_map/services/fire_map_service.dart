@@ -33,15 +33,80 @@ class FireMapService {
   static const String _incidentFallbackLayerUrl =
       'https://services9.arcgis.com/RHVPKKiFTONKtxq3/arcgis/rest/services/'
       'USA_Wildfires_v1/FeatureServer/0/query';
+  static final String _incidentOutFields = [
+    'OBJECTID',
+    'ObjectId',
+    'FID',
+    'IrwinID',
+    'IRWINID',
+    'UniqueFireIdentifier',
+    'IncidentName',
+    'incidentName',
+    'FireName',
+    'Name',
+    'DailyAcres',
+    'GISAcres',
+    'CalculatedAcres',
+    'Acres',
+    'PercentContained',
+    'PercentContainment',
+    'ContainmentPercent',
+    'FireDiscoveryDateTime',
+    'DiscoveryDate',
+    'StartDate',
+    'ModifiedOnDateTime',
+    'ModifiedOn',
+    'CurrentDateTime',
+    'CreateDate',
+    'ContainmentDateTime',
+    'ContainmentDate',
+    'ContainedDate',
+    'ControlDateTime',
+    'ControlDate',
+    'ControlledDate',
+    'FFReportApprovedDate',
+    'FinalFireReportApprovedDate',
+    'POOProtectingUnit',
+    'ProtectingUnit',
+    'Jurisdiction',
+    'UnitID',
+    'POOProtectingAgency',
+    'Agency',
+    'IncidentTypeCategory',
+    'IncidentTypeKind',
+    'IncidentType',
+    'IncidentStatus',
+    'FireStatus',
+    'FeatureStatus',
+    'ICS209ReportStatus',
+    'IncidentShortDescription',
+    'StrategicDecisionPublishText',
+    'Remarks',
+    'Comments',
+    'IsActive',
+    'Active',
+    'IsValid',
+  ].join(',');
+
   final http.Client _client;
   final FireMapCacheService _cacheService;
 
+  Future<FireMapResult<List<FireIncident>>?> loadCachedIncidents() async {
+    final cached = await _cacheService.loadIncidents();
+    if (cached == null) return null;
+    return FireMapResult(
+      data: _parseIncidents(cached.json),
+      isCached: true,
+      lastUpdated: cached.cachedAt,
+    );
+  }
+
   Future<FireMapResult<List<FireIncident>>> fetchActiveIncidents() async {
     try {
-      final json = await _getJson(_incidentLayerUrl, const {
+      final json = await _getJson(_incidentLayerUrl, {
         'f': 'json',
         'where': '1=1',
-        'outFields': '*',
+        'outFields': _incidentOutFields,
         'returnGeometry': 'true',
         'outSR': '4326',
         'resultRecordCount': '2000',
@@ -55,10 +120,10 @@ class FireMapService {
           'Requested active wildfire layer returned 0 valid incidents. '
           'Trying current NIFC/WFIGS fallback layer.',
         );
-        final fallbackJson = await _getJson(_incidentFallbackLayerUrl, const {
+        final fallbackJson = await _getJson(_incidentFallbackLayerUrl, {
           'f': 'json',
           'where': '1=1',
-          'outFields': '*',
+          'outFields': _incidentOutFields,
           'returnGeometry': 'true',
           'outSR': '4326',
           'resultRecordCount': '2000',

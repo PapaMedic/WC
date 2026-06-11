@@ -2,25 +2,31 @@ import 'dart:typed_data';
 
 import 'package:wildland_companion_v2/features/tickets/models/of297_shift_ticket.dart';
 import 'package:wildland_companion_v2/features/tickets/models/shift_ticket_export_format.dart';
+import 'package:wildland_companion_v2/features/tickets/pdf/ctr_pdf_generator.dart';
 import 'package:wildland_companion_v2/features/tickets/pdf/of297_export_document.dart';
 import 'package:wildland_companion_v2/features/tickets/pdf/of297_pdf_generator.dart';
 
 class ShiftTicketGeneratedPdf {
   final String fileName;
   final Uint8List bytes;
+  final List<String> warnings;
 
   const ShiftTicketGeneratedPdf({
     required this.fileName,
     required this.bytes,
+    this.warnings = const [],
   });
 }
 
 class ShiftTicketPdfExporter {
   final Of297PdfGenerator _of297Generator;
+  final CtrPdfGenerator _ctrGenerator;
 
   ShiftTicketPdfExporter({
     Of297PdfGenerator? of297Generator,
-  }) : _of297Generator = of297Generator ?? Of297PdfGenerator();
+    CtrPdfGenerator? ctrGenerator,
+  })  : _of297Generator = of297Generator ?? Of297PdfGenerator(),
+        _ctrGenerator = ctrGenerator ?? CtrPdfGenerator();
 
   Future<Uint8List> generatePreviewPdf(
     OF297ShiftTicket ticket, {
@@ -29,9 +35,10 @@ class ShiftTicketPdfExporter {
     switch (format) {
       case ShiftTicketExportFormat.of297:
         return _of297Generator.generatePreviewPdf(ticket);
-      case ShiftTicketExportFormat.etr:
       case ShiftTicketExportFormat.ctr:
-        throw UnsupportedError('${format.label} export is not available yet.');
+        return _ctrGenerator.generatePreviewPdf(ticket).then(
+              (result) => result.bytes,
+            );
     }
   }
 
@@ -55,9 +62,15 @@ class ShiftTicketPdfExporter {
           );
         }
         return generated;
-      case ShiftTicketExportFormat.etr:
       case ShiftTicketExportFormat.ctr:
-        throw UnsupportedError('${format.label} export is not available yet.');
+        final result = await _ctrGenerator.generatePreviewPdf(ticket);
+        return [
+          ShiftTicketGeneratedPdf(
+            fileName: result.fileName,
+            bytes: result.bytes,
+            warnings: result.warnings,
+          ),
+        ];
     }
   }
 
@@ -68,9 +81,10 @@ class ShiftTicketPdfExporter {
     switch (format) {
       case ShiftTicketExportFormat.of297:
         return _of297Generator.generateFinalizedPdf(ticket);
-      case ShiftTicketExportFormat.etr:
       case ShiftTicketExportFormat.ctr:
-        throw UnsupportedError('${format.label} export is not available yet.');
+        return _ctrGenerator.generateFinalizedPdf(ticket).then(
+              (result) => result.bytes,
+            );
     }
   }
 
@@ -94,9 +108,15 @@ class ShiftTicketPdfExporter {
           );
         }
         return generated;
-      case ShiftTicketExportFormat.etr:
       case ShiftTicketExportFormat.ctr:
-        throw UnsupportedError('${format.label} export is not available yet.');
+        final result = await _ctrGenerator.generateFinalizedPdf(ticket);
+        return [
+          ShiftTicketGeneratedPdf(
+            fileName: result.fileName,
+            bytes: result.bytes,
+            warnings: result.warnings,
+          ),
+        ];
     }
   }
 }

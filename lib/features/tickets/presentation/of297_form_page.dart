@@ -55,6 +55,7 @@ class _OF297FormPageState extends State<OF297FormPage> {
   final _incidentNumberController = TextEditingController();
   final _financialCodeController = TextEditingController();
   final _contractorNameController = TextEditingController();
+  final _ctrOfficeResponsibleForFireController = TextEditingController();
   final _equipmentMakeModelController = TextEditingController();
   final _equipmentTypeController = TextEditingController();
   final _serialVinController = TextEditingController();
@@ -94,6 +95,7 @@ class _OF297FormPageState extends State<OF297FormPage> {
     _incidentNumberController.dispose();
     _financialCodeController.dispose();
     _contractorNameController.dispose();
+    _ctrOfficeResponsibleForFireController.dispose();
     _equipmentMakeModelController.dispose();
     _equipmentTypeController.dispose();
     _serialVinController.dispose();
@@ -174,6 +176,8 @@ class _OF297FormPageState extends State<OF297FormPage> {
       _incidentNumberController.text = ticket.incidentNumber;
       _financialCodeController.text = ticket.financialCode;
       _contractorNameController.text = ticket.contractorName;
+      _ctrOfficeResponsibleForFireController.text =
+          ticket.ctrOfficeResponsibleForFire;
       _equipmentMakeModelController.text = ticket.equipmentMakeModel;
       _equipmentTypeController.text = ticket.equipmentType;
       _serialVinController.text = ticket.serialVinNumber;
@@ -229,6 +233,7 @@ class _OF297FormPageState extends State<OF297FormPage> {
       final entry = entries[i];
       row.date.text = _formatDate(entry.date);
       row.name.text = entry.name;
+      row.position.text = entry.position;
       row.guaranteeStart.text = _formatTime(entry.guaranteeStartTime);
       row.guaranteeStop.text = _formatTime(entry.guaranteeStopTime);
       row.start.text = _formatTime(entry.startTime);
@@ -313,6 +318,15 @@ class _OF297FormPageState extends State<OF297FormPage> {
                     readOnly: readOnly,
                   ),
                 ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            OF297SectionCard(
+              title: 'CTR Details',
+              child: OF297TextField(
+                label: 'Office Responsible For Fire',
+                controller: _ctrOfficeResponsibleForFireController,
+                readOnly: readOnly,
               ),
             ),
             const SizedBox(height: AppSpacing.lg),
@@ -828,6 +842,8 @@ class _OF297FormPageState extends State<OF297FormPage> {
       agreementNumber: _agreementNumberController.text.trim(),
       resourceOrderNumber: _resourceOrderNumberController.text.trim(),
       contractorName: _contractorNameController.text.trim(),
+      ctrOfficeResponsibleForFire:
+          _ctrOfficeResponsibleForFireController.text.trim(),
       equipmentMakeModel: _equipmentMakeModelController.text.trim(),
       equipmentType: _equipmentTypeController.text.trim(),
       serialVinNumber: _serialVinController.text.trim(),
@@ -1107,6 +1123,7 @@ String _formatNumberValue(double value) {
 class _PersonnelRowControllers {
   final date = TextEditingController();
   final name = TextEditingController();
+  final position = TextEditingController();
   final guaranteeStart = TextEditingController();
   final guaranteeStop = TextEditingController();
   final start = TextEditingController();
@@ -1114,7 +1131,8 @@ class _PersonnelRowControllers {
   final total = TextEditingController();
   final notes = TextEditingController();
 
-  bool get hasPopulatedContent => name.text.trim().isNotEmpty;
+  bool get hasPopulatedContent =>
+      name.text.trim().isNotEmpty || position.text.trim().isNotEmpty;
 
   void recalculateTotal() {
     final rowHours = _calculatePersonnelTotalHours(
@@ -1161,6 +1179,7 @@ class _PersonnelRowControllers {
       id: id,
       date: parseDate(date.text),
       name: name.text.trim(),
+      position: position.text.trim(),
       guaranteeStartTime: parsedGuaranteeStart,
       guaranteeStopTime: parsedGuaranteeStop,
       startTime: parsedStart,
@@ -1173,6 +1192,7 @@ class _PersonnelRowControllers {
   void dispose() {
     date.dispose();
     name.dispose();
+    position.dispose();
     guaranteeStart.dispose();
     guaranteeStop.dispose();
     start.dispose();
@@ -1308,6 +1328,11 @@ class _PersonnelRowEditor extends StatelessWidget {
             OF297TextField(
               label: '23. Operator Name',
               controller: row.name,
+              readOnly: readOnly,
+            ),
+            OF297TextField(
+              label: 'Classification / Qualification',
+              controller: row.position,
               readOnly: readOnly,
             ),
             _MilitaryTimeField(

@@ -1,6 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:printing/printing.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:wildland_companion_v2/app/theme/app_spacing.dart';
 import 'package:wildland_companion_v2/core/widgets/tactical_card.dart';
@@ -11,10 +13,12 @@ import 'package:wildland_companion_v2/features/tickets/models/of297_shift_ticket
 import 'package:wildland_companion_v2/features/tickets/models/shift_ticket_export_format.dart';
 import 'package:wildland_companion_v2/features/tickets/pdf/of297_export_document.dart';
 import 'package:wildland_companion_v2/features/tickets/pdf/of297_pdf_service.dart';
+import 'package:wildland_companion_v2/features/tickets/pdf/pdf_byte_utils.dart';
 import 'package:wildland_companion_v2/features/tickets/pdf/shift_ticket_pdf_exporter.dart';
 import 'package:wildland_companion_v2/features/tickets/presentation/of297_form_page.dart';
 import 'package:wildland_companion_v2/features/tickets/presentation/widgets/of297_signature_box.dart';
 import 'package:wildland_companion_v2/features/tickets/presentation/widgets/of297_status_pill.dart';
+import 'package:wildland_companion_v2/features/tickets/presentation/widgets/shift_ticket_pdf_preview_screen.dart';
 import 'package:wildland_companion_v2/features/tickets/state/tickets_state.dart';
 import 'package:wildland_companion_v2/features/tickets/utils/shift_ticket_time.dart';
 
@@ -41,7 +45,6 @@ class OF297ReviewPage extends StatefulWidget {
 class _OF297ReviewPageState extends State<OF297ReviewPage> {
   final ShiftTicketPdfExporter _pdfExporter = ShiftTicketPdfExporter();
   final Of297PdfService _pdfService = Of297PdfService();
-  ShiftTicketExportFormat _exportFormat = ShiftTicketExportFormat.of297;
   bool _isGeneratingPdf = false;
   bool _documentReviewed = false;
 
@@ -98,27 +101,8 @@ class _OF297ReviewPageState extends State<OF297ReviewPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      DropdownButtonFormField<ShiftTicketExportFormat>(
-                        initialValue: _exportFormat,
-                        decoration: const InputDecoration(
-                          labelText: 'Export Format',
-                          prefixIcon: Icon(Icons.file_present_outlined),
-                        ),
-                        items: ShiftTicketExportFormat.values
-                            .map(
-                              (format) => DropdownMenuItem(
-                                value: format,
-                                child: Text(format.label),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (value) {
-                          if (value == null) return;
-                          setState(() {
-                            _exportFormat = value;
-                            _documentReviewed = false;
-                          });
-                        },
+                      const Text(
+                        'OF-297 is the primary ticket. CTR is available as a legacy crew time report output from the same finalized data.',
                       ),
                       const SizedBox(height: AppSpacing.md),
                       Wrap(
@@ -128,15 +112,23 @@ class _OF297ReviewPageState extends State<OF297ReviewPage> {
                           FilledButton.icon(
                             onPressed: _isGeneratingPdf
                                 ? null
-                                : () => _showPdfPreview(context, ticket),
+                                : () => _showPdfPreview(
+                                      context,
+                                      ticket,
+                                      ShiftTicketExportFormat.of297,
+                                    ),
                             icon: const Icon(Icons.preview_outlined),
-                            label: const Text('Preview PDF'),
+                            label: const Text('Preview OF-297'),
                           ),
                           if (ticket.isFinalized)
                             FilledButton.icon(
                               onPressed: _isGeneratingPdf
                                   ? null
-                                  : () => _generateAndSavePdf(context, ticket),
+                                  : () => _generateAndSavePdf(
+                                        context,
+                                        ticket,
+                                        ShiftTicketExportFormat.of297,
+                                      ),
                               icon: _isGeneratingPdf
                                   ? const SizedBox(
                                       width: 18,
@@ -149,7 +141,7 @@ class _OF297ReviewPageState extends State<OF297ReviewPage> {
                               label: Text(
                                 _isGeneratingPdf
                                     ? 'Generating PDF...'
-                                    : 'Save PDF',
+                                    : 'Export OF-297',
                               ),
                             )
                           else
@@ -158,15 +150,46 @@ class _OF297ReviewPageState extends State<OF297ReviewPage> {
                               icon: const Icon(Icons.edit_outlined),
                               label: const Text('Edit'),
                             ),
+                          OutlinedButton.icon(
+                            onPressed: _isGeneratingPdf
+                                ? null
+                                : () => _showPdfPreview(
+                                      context,
+                                      ticket,
+                                      ShiftTicketExportFormat.ctr,
+                                    ),
+                            icon: const Icon(Icons.preview_outlined),
+                            label: const Text('Preview CTR'),
+                          ),
+                          if (ticket.isFinalized)
+                            OutlinedButton.icon(
+                              onPressed: _isGeneratingPdf
+                                  ? null
+                                  : () => _generateAndSavePdf(
+                                        context,
+                                        ticket,
+                                        ShiftTicketExportFormat.ctr,
+                                      ),
+                              icon: const Icon(Icons.save_alt_outlined),
+                              label: const Text('Export CTR'),
+                            ),
                         ],
                       ),
                       if (!ticket.isFinalized && !_documentReviewed) ...[
                         const SizedBox(height: AppSpacing.sm),
                         const Text(
-                          'Review the generated document before collecting signatures.',
+                          'Review the OF-297 document before collecting signatures.',
                         ),
                       ],
                     ],
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                TacticalCard(
+                  title: 'CTR Details',
+                  child: _ReviewLine(
+                    label: 'Office Responsible For Fire',
+                    value: ticket.ctrOfficeResponsibleForFire,
                   ),
                 ),
                 const SizedBox(height: AppSpacing.lg),
@@ -463,7 +486,10 @@ class _OF297ReviewPageState extends State<OF297ReviewPage> {
   Future<void> _generateAndSavePdf(
     BuildContext context,
     OF297ShiftTicket ticket,
+    ShiftTicketExportFormat format,
   ) async {
+    final sharePositionOrigin = _pdfService.sharePositionOriginFor(context);
+
     setState(() {
       _isGeneratingPdf = true;
     });
@@ -471,9 +497,10 @@ class _OF297ReviewPageState extends State<OF297ReviewPage> {
     try {
       final generatedPdfs = await _pdfExporter.generateFinalizedPdfs(
         ticket,
-        format: _exportFormat,
+        format: format,
       );
       final files = await _pdfService.savePdfFilesAs(
+        sharePositionOrigin: sharePositionOrigin,
         pdfFiles: generatedPdfs
             .map(
               (pdf) => Of297PdfFile(
@@ -490,6 +517,7 @@ class _OF297ReviewPageState extends State<OF297ReviewPage> {
 
       if (!context.mounted) return;
       final generatedAt = DateTime.now();
+      final warnings = _warningsFor(generatedPdfs);
       final ticketsState = context.read<TicketsState>();
       for (final file in files) {
         await ticketsState.addPdfRecord(
@@ -511,18 +539,28 @@ class _OF297ReviewPageState extends State<OF297ReviewPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            files.length == 1
-                ? 'PDF saved.'
-                : '${files.length} PDF files saved.',
+            [
+              files.length == 1
+                  ? '${format.label} PDF saved.'
+                  : '${files.length} ${format.label} PDF files saved.',
+              ...warnings,
+            ].join(' '),
           ),
           showCloseIcon: true,
           action: SnackBarAction(
             label: 'Share',
             onPressed: () {
+              final actionOrigin = _pdfService.sharePositionOriginFor(context);
               if (files.length == 1) {
-                _pdfService.sharePdf(files.first);
+                _pdfService.sharePdf(
+                  files.first,
+                  sharePositionOrigin: actionOrigin,
+                );
               } else {
-                _pdfService.sharePdfs(files);
+                _pdfService.sharePdfs(
+                  files,
+                  sharePositionOrigin: actionOrigin,
+                );
               }
             },
           ),
@@ -592,6 +630,7 @@ class _OF297ReviewPageState extends State<OF297ReviewPage> {
   Future<void> _showPdfPreview(
     BuildContext context,
     OF297ShiftTicket ticket,
+    ShiftTicketExportFormat format,
   ) async {
     setState(() {
       _isGeneratingPdf = true;
@@ -600,89 +639,35 @@ class _OF297ReviewPageState extends State<OF297ReviewPage> {
     try {
       final generatedPdfs = await _pdfExporter.generatePreviewPdfs(
         ticket,
-        format: _exportFormat,
+        format: format,
       );
       if (generatedPdfs.isEmpty) return;
+      final previewDocuments = await _writePreviewPdfsToTempFiles(
+        generatedPdfs,
+        ticket,
+        format,
+      );
       if (!context.mounted) return;
 
-      var selectedPreviewIndex = 0;
-      final continued = await showDialog<bool>(
-        context: context,
-        builder: (context) => StatefulBuilder(
-          builder: (context, setDialogState) {
-            final selectedPdf = generatedPdfs[selectedPreviewIndex];
-            return Dialog.fullscreen(
-              child: Scaffold(
-                appBar: AppBar(
-                  title: Text('Review ${_exportFormat.label} Document'),
-                  actions: ticket.isFinalized
-                      ? [
-                          FilledButton(
-                            onPressed: () => Navigator.of(context).pop(false),
-                            child: const Text('Close'),
-                          ),
-                          const SizedBox(width: AppSpacing.md),
-                        ]
-                      : [
-                          TextButton(
-                            onPressed: () => Navigator.of(context).pop(false),
-                            child: const Text('Back'),
-                          ),
-                          const SizedBox(width: AppSpacing.sm),
-                          FilledButton(
-                            onPressed: () => Navigator.of(context).pop(true),
-                            child: const Text('Continue to Signatures'),
-                          ),
-                          const SizedBox(width: AppSpacing.md),
-                        ],
-                ),
-                body: Column(
-                  children: [
-                    Material(
-                      elevation: 1,
-                      child: Padding(
-                        padding: const EdgeInsets.all(AppSpacing.md),
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: Wrap(
-                            spacing: AppSpacing.md,
-                            runSpacing: AppSpacing.sm,
-                            children: [
-                              for (var i = 0; i < generatedPdfs.length; i++)
-                                ChoiceChip(
-                                  label: Text(generatedPdfs[i].fileName),
-                                  selected: i == selectedPreviewIndex,
-                                  onSelected: (_) {
-                                    setDialogState(() {
-                                      selectedPreviewIndex = i;
-                                    });
-                                  },
-                                ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: PdfPreview(
-                        key: ValueKey(selectedPdf.fileName),
-                        build: (_) async => selectedPdf.bytes,
-                        allowPrinting: false,
-                        allowSharing: false,
-                        canChangeOrientation: false,
-                        canChangePageFormat: false,
-                        canDebug: false,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
+      final warnings = _warningsFor(generatedPdfs);
+      final continued = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(
+          fullscreenDialog: true,
+          builder: (context) => ShiftTicketPdfPreviewScreen(
+            title: 'Review ${format.label} Document',
+            documents: previewDocuments,
+            warnings: warnings,
+            canContinueToSignatures:
+                !ticket.isFinalized && format == ShiftTicketExportFormat.of297,
+            initialPreviewIndex: 0,
+          ),
         ),
       );
 
-      if (!ticket.isFinalized && continued == true && mounted) {
+      if (!ticket.isFinalized &&
+          format == ShiftTicketExportFormat.of297 &&
+          continued == true &&
+          mounted) {
         setState(() {
           _documentReviewed = true;
         });
@@ -699,6 +684,66 @@ class _OF297ReviewPageState extends State<OF297ReviewPage> {
         });
       }
     }
+  }
+
+  Future<List<ShiftTicketPdfPreviewDocument>> _writePreviewPdfsToTempFiles(
+    List<ShiftTicketGeneratedPdf> generatedPdfs,
+    OF297ShiftTicket ticket,
+    ShiftTicketExportFormat format,
+  ) async {
+    final tempDirectory = await getTemporaryDirectory();
+    final previewDirectory = Directory(
+      '${tempDirectory.path}${Platform.pathSeparator}wildland_pdf_previews',
+    );
+    await previewDirectory.create(recursive: true);
+
+    final timestamp = DateTime.now().microsecondsSinceEpoch;
+    final documents = <ShiftTicketPdfPreviewDocument>[];
+    for (var i = 0; i < generatedPdfs.length; i++) {
+      final generatedPdf = generatedPdfs[i];
+      validatePdfBytes(generatedPdf.bytes, label: generatedPdf.fileName);
+
+      final fileName = _ensurePdfExtension(
+        _sanitizeFileName(
+          '${format.name}_${ticket.id}_${timestamp}_${i}_${generatedPdf.fileName}',
+        ),
+      );
+      final file = File(
+        '${previewDirectory.path}${Platform.pathSeparator}$fileName',
+      );
+      await file.writeAsBytes(generatedPdf.bytes, flush: true);
+
+      final exists = await file.exists();
+      final size = exists ? await file.length() : 0;
+      final writtenBytes = exists ? await file.readAsBytes() : null;
+      final header = writtenBytes == null ? '' : pdfHeader(writtenBytes);
+      debugPrint('PDF OUTPUT PATH: ${file.path}');
+      debugPrint('PDF PREVIEW PATH: ${file.path}');
+      debugPrint('PDF EXISTS: $exists');
+      debugPrint('PDF SIZE: $size bytes');
+      debugPrint('PDF HEADER: $header');
+
+      if (!exists) {
+        throw Exception('${generatedPdf.fileName} preview file was not saved.');
+      }
+      if (size == 0) {
+        throw Exception('${generatedPdf.fileName} preview file is empty.');
+      }
+      if (writtenBytes == null || !header.startsWith('%PDF')) {
+        throw Exception(
+          '${generatedPdf.fileName} preview file has invalid PDF header: $header',
+        );
+      }
+
+      documents.add(
+        ShiftTicketPdfPreviewDocument(
+          fileName: generatedPdf.fileName,
+          pdfPath: file.path,
+        ),
+      );
+    }
+
+    return documents;
   }
 
   Future<void> _editTicket(
@@ -776,13 +821,43 @@ class _OF297ReviewPageState extends State<OF297ReviewPage> {
   }
 
   List<String> _exportFileNames(OF297ShiftTicket ticket) {
-    if (_exportFormat != ShiftTicketExportFormat.of297) {
-      return ['${_exportFormat.label} export is not available yet.'];
-    }
+    return [
+      ...buildOf297ExportDocuments(ticket).map(
+        (document) => _displayFileName(document.fileName),
+      ),
+      _displayFileName(
+        'CTR_${_sanitizeFileName(ticket.incidentName)}_'
+        '${_sanitizeFileName(ticket.id)}.pdf',
+      ),
+    ];
+  }
 
-    return buildOf297ExportDocuments(ticket)
-        .map((document) => document.fileName)
-        .toList();
+  List<String> _warningsFor(List<ShiftTicketGeneratedPdf> generatedPdfs) {
+    return generatedPdfs
+        .expand((pdf) => pdf.warnings)
+        .toSet()
+        .toList(growable: false);
+  }
+
+  String _sanitizeFileName(String value) {
+    final sanitized = value
+        .trim()
+        .replaceAll(RegExp(r'[^A-Za-z0-9._-]+'), '_')
+        .replaceAll(RegExp(r'_+'), '_');
+    return sanitized.isEmpty ? 'ticket' : sanitized;
+  }
+
+  String _ensurePdfExtension(String fileName) {
+    return fileName.toLowerCase().endsWith('.pdf') ? fileName : '$fileName.pdf';
+  }
+
+  String _displayFileName(String fileName) {
+    final extension = fileName.toLowerCase().endsWith('.pdf') ? '.pdf' : '';
+    final baseName = extension.isEmpty
+        ? fileName
+        : fileName.substring(0, fileName.length - extension.length);
+    if (baseName.length <= 34) return '$baseName$extension';
+    return '${baseName.substring(0, 31)}...$extension';
   }
 }
 

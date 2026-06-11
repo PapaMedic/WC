@@ -21,7 +21,9 @@ class WildlandBackground extends StatelessWidget {
 
         // Main dark overlay for readability.
         Positioned.fill(
-          child: Container(color: const Color(0xFF050705).withOpacity(0.68)),
+          child: Container(
+            color: const Color(0xFF050705).withValues(alpha: 0.68),
+          ),
         ),
 
         // Subtle vertical gradient for premium depth.
@@ -32,9 +34,9 @@ class WildlandBackground extends StatelessWidget {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Colors.black.withOpacity(0.30),
+                  Colors.black.withValues(alpha: 0.30),
                   Colors.transparent,
-                  Colors.black.withOpacity(0.45),
+                  Colors.black.withValues(alpha: 0.45),
                 ],
                 stops: const [0.0, 0.45, 1.0],
               ),
@@ -50,7 +52,7 @@ class WildlandBackground extends StatelessWidget {
                 center: Alignment.topRight,
                 radius: 1.2,
                 colors: [
-                  const Color(0xFF556B2F).withOpacity(0.12),
+                  const Color(0xFF556B2F).withValues(alpha: 0.12),
                   Colors.transparent,
                 ],
               ),

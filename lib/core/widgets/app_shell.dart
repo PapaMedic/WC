@@ -52,6 +52,7 @@ class AppShell extends StatelessWidget {
                 backgroundColor: const Color(0xFF111511),
                 child: AppSidebar(
                   currentIndex: currentIndex,
+                  respectSafeArea: true,
                   onNavigate: (i) {
                     Navigator.pop(context); // close drawer
                     onNavigate(i);
