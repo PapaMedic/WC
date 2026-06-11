@@ -46,13 +46,45 @@ class CtrTimeRow {
   });
 }
 
-class _CtrInterval {
+class _CtrRawBlock {
+  final int blockIndex;
   final DateTime start;
   final DateTime end;
 
-  const _CtrInterval({
+  const _CtrRawBlock({
+    required this.blockIndex,
     required this.start,
     required this.end,
+  });
+}
+
+class _CtrDateSegment {
+  final int blockIndex;
+  final DateTime date;
+  final DateTime start;
+  final String on;
+  final String off;
+
+  const _CtrDateSegment({
+    required this.blockIndex,
+    required this.date,
+    required this.start,
+    required this.on,
+    required this.off,
+  });
+}
+
+class _CtrEmployeeBlock {
+  final String employeeName;
+  final String classification;
+  final String remarksNo;
+  final List<_CtrRawBlock> rawBlocks;
+
+  const _CtrEmployeeBlock({
+    required this.employeeName,
+    required this.classification,
+    required this.remarksNo,
+    required this.rawBlocks,
   });
 }
 
@@ -97,9 +129,10 @@ class CtrPdfGenerator {
       _fillPersonnelRows(document, ctrRows);
       _fillRemarks(document, ticket);
       _fillSignatureSection(document, ticket);
+      final officerSignatureBox = _officerSignatureBox(document);
 
       document.form.flattenAllFields();
-      await _drawSignatures(document, ticket);
+      await _drawSignatures(document, ticket, officerSignatureBox);
 
       final bytes = Uint8List.fromList(await document.save());
       validatePdfBytes(bytes, label: 'CTR ${_fileName(ticket)}');
@@ -162,7 +195,7 @@ class CtrPdfGenerator {
     setTextField(
       document,
       '13 TITLE OfficerinCharge',
-      _supervisorTitle(),
+      _supervisorTitle(ticket),
     );
     setTextField(
       document,
@@ -181,19 +214,32 @@ class CtrPdfGenerator {
   Future<void> _drawSignatures(
     PdfDocument document,
     OF297ShiftTicket ticket,
+    Rect officerSignatureBox,
   ) async {
     final supervisorSignature = ticket.supervisorSignature;
     if (supervisorSignature != null) {
       await _signatureDrawer.drawSignature(
         page: document.pages[0],
         signature: supervisorSignature,
-        box: const Rect.fromLTWH(14.8, 497.5, 161.4, 13.4),
+        box: officerSignatureBox,
       );
     }
 
     // Box 14 is a printed-name field, not a signature box. Do not draw the
     // operator/contractor signature unless the official CTR template adds a
     // separate operator signature area.
+  }
+
+  Rect _officerSignatureBox(PdfDocument document) {
+    final field = _fieldByName(document, '12 OFFICER-IN-CHARGE Signature');
+    final bounds =
+        field?.bounds ?? const Rect.fromLTWH(14.8, 497.5, 161.4, 13.4);
+    return Rect.fromLTWH(
+      bounds.left,
+      bounds.top - 5,
+      bounds.width,
+      bounds.height + 10,
+    );
   }
 
   List<String> _warnings(OF297ShiftTicket ticket, List<CtrTimeRow> ctrRows) {
@@ -267,10 +313,8 @@ class CtrPdfGenerator {
     return ticket.equipmentId;
   }
 
-  String _supervisorTitle() {
-    // The ticket currently stores supervisor name/signature, but not a title.
-    // Leave CTR Box 13 blank until there is a real title field to map.
-    return '';
+  String _supervisorTitle(OF297ShiftTicket ticket) {
+    return ticket.supervisorSignature?.signerTitle ?? '';
   }
 
   String _rowRemarks(OF297PersonnelTimeEntry entry) {
@@ -303,96 +347,240 @@ class CtrPdfGenerator {
   }
 
   List<CtrTimeRow> buildCtrTimeRows(OF297ShiftTicket ticket) {
-    final rows = <CtrTimeRow>[];
+    final employeeBlocks = <_CtrEmployeeBlock>[];
+    final employeeIndexes = <String, int>{};
+    final visibleDates = <DateTime>[];
+
     for (final entry in ticket.personnelEntries) {
       if (entry.name.trim().isEmpty && entry.position.trim().isEmpty) continue;
 
-      final interval = _personnelInterval(ticket, entry);
-      if (interval == null) {
-        rows.add(
-          CtrTimeRow(
+      final rawBlocks = _personnelRawBlocks(ticket, entry);
+      final key = _employeeKey(entry);
+      final existingIndex = employeeIndexes[key];
+      if (existingIndex == null) {
+        employeeIndexes[key] = employeeBlocks.length;
+        employeeBlocks.add(
+          _CtrEmployeeBlock(
             remarksNo: _rowRemarks(entry),
             employeeName: entry.name,
             classification: entry.position,
+            rawBlocks: rawBlocks,
           ),
         );
-        continue;
+      } else {
+        employeeBlocks[existingIndex].rawBlocks.addAll(rawBlocks);
       }
 
-      rows.addAll(_rowsForInterval(entry, interval));
+      for (final rawBlock in rawBlocks) {
+        for (final segment in _splitRawBlockByDate(rawBlock)) {
+          if (!visibleDates.any((date) => _sameDate(date, segment.date))) {
+            visibleDates.add(segment.date);
+          }
+          if (visibleDates.length == 2) break;
+        }
+      }
+    }
+
+    final rows = <CtrTimeRow>[];
+    for (final block in employeeBlocks) {
+      _logEmployeeBlock(block);
+      rows.addAll(_rowsForEmployeeBlock(block, visibleDates));
     }
     return rows;
   }
 
-  List<CtrTimeRow> _rowsForInterval(
-    OF297PersonnelTimeEntry entry,
-    _CtrInterval interval,
+  List<CtrTimeRow> _rowsForEmployeeBlock(
+    _CtrEmployeeBlock block,
+    List<DateTime> visibleDates,
   ) {
-    final startDate = _dateOnly(interval.start);
-    final endDate = _dateOnly(interval.end);
-    final firstOff = endDate.isAfter(startDate) ? '2400' : _time(interval.end);
-
-    final firstRow = CtrTimeRow(
-      remarksNo: _rowRemarks(entry),
-      employeeName: entry.name,
-      classification: entry.position,
-      firstDate: _date(startDate),
-      firstOn: _time(interval.start),
-      firstOff: firstOff,
-    );
-
-    if (!endDate.isAfter(startDate)) {
-      return [firstRow];
+    final groupedSegments = <String, List<_CtrDateSegment>>{};
+    for (final rawBlock in block.rawBlocks) {
+      for (final segment in _splitRawBlockByDate(rawBlock)) {
+        final key = _date(segment.date);
+        groupedSegments.putIfAbsent(key, () => []).add(segment);
+      }
+    }
+    for (final segments in groupedSegments.values) {
+      segments.sort((left, right) {
+        final startComparison = left.start.compareTo(right.start);
+        if (startComparison != 0) return startComparison;
+        return left.blockIndex.compareTo(right.blockIndex);
+      });
     }
 
+    final firstDate = visibleDates.isNotEmpty ? visibleDates[0] : null;
+    final secondDate = visibleDates.length > 1 ? visibleDates[1] : null;
+    final firstDateSegments = firstDate == null
+        ? const <_CtrDateSegment>[]
+        : groupedSegments[_date(firstDate)] ?? const <_CtrDateSegment>[];
+    final secondDateSegments = secondDate == null
+        ? const <_CtrDateSegment>[]
+        : groupedSegments[_date(secondDate)] ?? const <_CtrDateSegment>[];
+
     return [
-      firstRow,
+      CtrTimeRow(
+        remarksNo: block.remarksNo,
+        employeeName: block.employeeName,
+        classification: block.classification,
+        firstDate: firstDateSegments.isEmpty ? '' : _date(firstDate),
+        firstOn: firstDateSegments.isEmpty ? '' : firstDateSegments[0].on,
+        firstOff: firstDateSegments.isEmpty ? '' : firstDateSegments[0].off,
+        secondDate: secondDateSegments.isEmpty ? '' : _date(secondDate),
+        secondOn: secondDateSegments.isEmpty ? '' : secondDateSegments[0].on,
+        secondOff: secondDateSegments.isEmpty ? '' : secondDateSegments[0].off,
+      ),
       CtrTimeRow(
         remarksNo: '',
         employeeName: '',
         classification: '',
-        secondDate: _date(endDate),
-        secondOn: '0000',
-        secondOff: _time(interval.end),
+        firstDate: firstDateSegments.length < 2 ? '' : _date(firstDate),
+        firstOn: firstDateSegments.length < 2 ? '' : firstDateSegments[1].on,
+        firstOff: firstDateSegments.length < 2 ? '' : firstDateSegments[1].off,
+        secondDate: secondDateSegments.length < 2 ? '' : _date(secondDate),
+        secondOn: secondDateSegments.length < 2 ? '' : secondDateSegments[1].on,
+        secondOff:
+            secondDateSegments.length < 2 ? '' : secondDateSegments[1].off,
         isContinuation: true,
       ),
     ];
   }
 
-  _CtrInterval? _personnelInterval(
+  String _employeeKey(OF297PersonnelTimeEntry entry) {
+    final name = entry.name.trim().toLowerCase();
+    final position = entry.position.trim().toLowerCase();
+    return '$name|$position';
+  }
+
+  void _logEmployeeBlock(_CtrEmployeeBlock block) {
+    final buffer = StringBuffer('CTR EMPLOYEE: ${block.employeeName}');
+    for (final rawBlock in block.rawBlocks) {
+      buffer.writeln();
+      buffer.write(
+        'RAW BLOCK ${rawBlock.blockIndex}: '
+        '${_date(rawBlock.start)} ${_time(rawBlock.start)}-${_time(rawBlock.end)}',
+      );
+    }
+    buffer.writeln();
+    buffer.write('SPLIT SEGMENTS:');
+    for (final row
+        in _rowsForEmployeeBlock(block, _visibleDatesForBlock(block))) {
+      if (row.firstOn.isNotEmpty || row.firstOff.isNotEmpty) {
+        buffer.writeln();
+        buffer.write(
+          '${row.firstDate} ${row.isContinuation ? 'rowB' : 'rowA'} '
+          '${row.firstOn}-${row.firstOff}',
+        );
+      }
+      if (row.secondOn.isNotEmpty || row.secondOff.isNotEmpty) {
+        buffer.writeln();
+        buffer.write(
+          '${row.secondDate} ${row.isContinuation ? 'rowB' : 'rowA'} '
+          '${row.secondOn}-${row.secondOff}',
+        );
+      }
+    }
+    developer.log(buffer.toString(), name: 'CtrPdfGenerator');
+  }
+
+  List<DateTime> _visibleDatesForBlock(_CtrEmployeeBlock block) {
+    final dates = <DateTime>[];
+    for (final rawBlock in block.rawBlocks) {
+      for (final segment in _splitRawBlockByDate(rawBlock)) {
+        if (!dates.any((date) => _sameDate(date, segment.date))) {
+          dates.add(segment.date);
+        }
+        if (dates.length == 2) return dates;
+      }
+    }
+    return dates;
+  }
+
+  List<_CtrDateSegment> _splitRawBlockByDate(_CtrRawBlock rawBlock) {
+    final segments = <_CtrDateSegment>[];
+    var cursor = rawBlock.start;
+    while (cursor.isBefore(rawBlock.end)) {
+      final cursorDate = _dateOnly(cursor);
+      final nextMidnight = cursorDate.add(const Duration(days: 1));
+      final segmentEnd =
+          rawBlock.end.isBefore(nextMidnight) ? rawBlock.end : nextMidnight;
+      if (segmentEnd.isAfter(cursor)) {
+        segments.add(
+          _CtrDateSegment(
+            blockIndex: rawBlock.blockIndex,
+            date: cursorDate,
+            start: cursor,
+            on: _time(cursor),
+            off: segmentEnd.isAtSameMomentAs(nextMidnight)
+                ? '2400'
+                : _time(segmentEnd),
+          ),
+        );
+      }
+      cursor = segmentEnd;
+    }
+    return segments;
+  }
+
+  bool _sameDate(DateTime left, DateTime right) {
+    return left.year == right.year &&
+        left.month == right.month &&
+        left.day == right.day;
+  }
+
+  List<_CtrRawBlock> _personnelRawBlocks(
     OF297ShiftTicket ticket,
     OF297PersonnelTimeEntry entry,
   ) {
-    final start = entry.startTime ?? entry.guaranteeStartTime;
-    final stop = entry.stopTime ?? entry.guaranteeStopTime;
-    if (start != null && stop != null) {
-      return _CtrInterval(start: start, end: _adjustEnd(start, stop));
+    final rawBlocks = <_CtrRawBlock>[];
+    if (entry.guaranteeStartTime != null && entry.guaranteeStopTime != null) {
+      rawBlocks.add(
+        _CtrRawBlock(
+          blockIndex: 1,
+          start: entry.guaranteeStartTime!,
+          end: _adjustEnd(entry.guaranteeStartTime!, entry.guaranteeStopTime!),
+        ),
+      );
+    }
+    if (entry.startTime != null && entry.stopTime != null) {
+      rawBlocks.add(
+        _CtrRawBlock(
+          blockIndex: 2,
+          start: entry.startTime!,
+          end: _adjustEnd(entry.startTime!, entry.stopTime!),
+        ),
+      );
     }
 
-    return _globalInterval(ticket);
+    return rawBlocks.isNotEmpty ? rawBlocks : _globalRawBlocks(ticket);
   }
 
-  _CtrInterval? _globalInterval(OF297ShiftTicket ticket) {
+  List<_CtrRawBlock> _globalRawBlocks(OF297ShiftTicket ticket) {
     final date = ticket.globalShiftDate ?? ticket.shiftStart;
-    if (date == null) return null;
+    if (date == null) return const [];
 
-    final startMinutes = _militaryMinutes(
-          ticket.globalBlock1Start,
-        ) ??
-        _militaryMinutes(ticket.globalBlock2Start);
-    final stopMinutes = _militaryMinutes(
-          ticket.globalBlock2Stop,
-        ) ??
-        _militaryMinutes(ticket.globalBlock1Stop);
-    if (startMinutes == null || stopMinutes == null) return null;
+    final rawBlocks = <_CtrRawBlock>[];
+    void addGlobalBlock(int blockIndex, String startValue, String stopValue) {
+      final startMinutes = _militaryMinutes(startValue);
+      final stopMinutes = _militaryMinutes(stopValue);
+      if (startMinutes == null || stopMinutes == null) return;
 
-    final start = _dateOnly(date).add(Duration(minutes: startMinutes));
-    var end = _dateOnly(date).add(Duration(minutes: stopMinutes));
-    if (!end.isAfter(start)) {
-      end = end.add(const Duration(days: 1));
+      final start = _dateOnly(date).add(Duration(minutes: startMinutes));
+      var end = _dateOnly(date).add(Duration(minutes: stopMinutes));
+      if (!end.isAfter(start)) {
+        end = end.add(const Duration(days: 1));
+      }
+      rawBlocks.add(
+        _CtrRawBlock(
+          blockIndex: blockIndex,
+          start: start,
+          end: end,
+        ),
+      );
     }
 
-    return _CtrInterval(start: start, end: end);
+    addGlobalBlock(1, ticket.globalBlock1Start, ticket.globalBlock1Stop);
+    addGlobalBlock(2, ticket.globalBlock2Start, ticket.globalBlock2Stop);
+    return rawBlocks;
   }
 
   DateTime _adjustEnd(DateTime start, DateTime stop) {
@@ -448,8 +636,13 @@ class CtrPdfGenerator {
   }
 
   String _fileName(OF297ShiftTicket ticket) {
+    final date = DateFormat('yyyy-MM-dd').format(
+      _dateOnly(
+        ticket.globalShiftDate ?? ticket.shiftStart ?? ticket.createdAt,
+      ),
+    );
     return 'CTR_${_sanitizeFileName(ticket.incidentName)}_'
-        '${_sanitizeFileName(ticket.id)}.pdf';
+        '$date.pdf';
   }
 
   String _sanitizeFileName(String value) {

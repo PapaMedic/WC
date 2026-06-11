@@ -71,8 +71,7 @@ class _OF297FormPageState extends State<OF297FormPage> {
 
   final List<_EquipmentRowControllers> _equipmentRows =
       List.generate(4, (_) => _EquipmentRowControllers());
-  final List<_PersonnelRowControllers> _personnelRows =
-      List.generate(4, (_) => _PersonnelRowControllers());
+  final List<_PersonnelRowControllers> _personnelRows = [];
 
   OF297ShiftTicket? _ticket;
   bool _transportRetained = false;
@@ -226,6 +225,18 @@ class _OF297FormPageState extends State<OF297FormPage> {
   }
 
   void _populatePersonnelRows(OF297ShiftTicket ticket) {
+    for (final row in _personnelRows) {
+      row.dispose();
+    }
+    _personnelRows
+      ..clear()
+      ..addAll(
+        List.generate(
+          _personnelControllerCount(ticket.personnelEntries.length),
+          (_) => _PersonnelRowControllers(),
+        ),
+      );
+
     final entries = ticket.personnelEntries;
     for (var i = 0; i < _personnelRows.length; i++) {
       if (i >= entries.length) continue;
@@ -244,6 +255,11 @@ class _OF297FormPageState extends State<OF297FormPage> {
         row.date.text = _globalDisplayDateForRow(ticket, entry.date);
       }
     }
+  }
+
+  int _personnelControllerCount(int entryCount) {
+    final minimumRows = entryCount == 0 ? 4 : entryCount;
+    return ((minimumRows + 3) ~/ 4) * 4;
   }
 
   @override
@@ -435,22 +451,7 @@ class _OF297FormPageState extends State<OF297FormPage> {
               ),
             ),
             const SizedBox(height: AppSpacing.lg),
-            OF297SectionCard(
-              title: 'Personnel Time 22-29',
-              child: Column(
-                children: [
-                  for (var i = 0; i < _personnelRows.length; i++) ...[
-                    _PersonnelRowEditor(
-                      rowNumber: i + 1,
-                      row: _personnelRows[i],
-                      readOnly: readOnly,
-                    ),
-                    if (i != _personnelRows.length - 1)
-                      const SizedBox(height: AppSpacing.md),
-                  ],
-                ],
-              ),
-            ),
+            ..._buildPersonnelTimeSections(readOnly: readOnly),
             const SizedBox(height: AppSpacing.lg),
             OF297SectionCard(
               title: '30. Remarks',
@@ -527,6 +528,54 @@ class _OF297FormPageState extends State<OF297FormPage> {
   }
 
   bool get _usesMileage => _rateIsMiles && !_rateIsHours;
+
+  List<Widget> _buildPersonnelTimeSections({required bool readOnly}) {
+    final populatedPersonnelCount =
+        _personnelRows.where((row) => row.hasPopulatedContent).length;
+    final groupCount = (_personnelRows.length / 4).ceil();
+    final sections = <Widget>[];
+
+    if (populatedPersonnelCount > 4) {
+      sections.add(
+        OF297SectionCard(
+          title: 'Personnel Export Notice',
+          child: Text(
+            'More than 4 personnel will create an additional OF-297 shift '
+            'ticket when exported or finalized.',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        ),
+      );
+      sections.add(const SizedBox(height: AppSpacing.lg));
+    }
+
+    for (var groupIndex = 0; groupIndex < groupCount; groupIndex++) {
+      final start = groupIndex * 4;
+      final end = (start + 4).clamp(0, _personnelRows.length);
+      sections.add(
+        OF297SectionCard(
+          title: 'Personnel Time 22-29 - OF-297 ${groupIndex + 1}',
+          child: Column(
+            children: [
+              for (var i = start; i < end; i++) ...[
+                _PersonnelRowEditor(
+                  rowNumber: i + 1,
+                  row: _personnelRows[i],
+                  readOnly: readOnly,
+                ),
+                if (i != end - 1) const SizedBox(height: AppSpacing.md),
+              ],
+            ],
+          ),
+        ),
+      );
+      if (groupIndex != groupCount - 1) {
+        sections.add(const SizedBox(height: AppSpacing.lg));
+      }
+    }
+
+    return sections;
+  }
 
   Widget _buildGlobalShiftPeriodSection({required bool readOnly}) {
     return OF297SectionCard(
@@ -744,6 +793,8 @@ class _OF297FormPageState extends State<OF297FormPage> {
       final block1Stop = _globalBlock1StopController.text;
       final block2Start = _globalBlock2StartController.text;
       final block2Stop = _globalBlock2StopController.text;
+      final equipmentStart = block1Start.isNotEmpty ? block1Start : block2Start;
+      final equipmentStop = block2Stop.isNotEmpty ? block2Stop : block1Stop;
       final shiftDisplayDate = _formatShiftDateRange(
         shiftDate,
         block1Start,
@@ -758,8 +809,8 @@ class _OF297FormPageState extends State<OF297FormPage> {
 
         row.date.text = shiftDisplayDate;
         if (!_usesMileage) {
-          row.start.text = block1Start;
-          row.stop.text = block1Stop;
+          row.start.text = equipmentStart;
+          row.stop.text = equipmentStop;
         }
         row.recalculateTotal(useMiles: _usesMileage);
         appliedRows++;
@@ -815,13 +866,19 @@ class _OF297FormPageState extends State<OF297FormPage> {
           ),
         )
         .toList();
-    final visiblePersonnelEntries = _personnelRows
-        .map((row) => row.toEntry(_uuid.v4(), _parseDate, _parseTime))
+    final personnelEntries = _personnelRows
+        .asMap()
+        .entries
+        .map(
+          (item) => item.value.toEntry(
+            item.key < _ticket!.personnelEntries.length
+                ? _ticket!.personnelEntries[item.key].id
+                : _uuid.v4(),
+            _parseDate,
+            _parseTime,
+          ),
+        )
         .toList();
-    final personnelEntries = [
-      ...visiblePersonnelEntries,
-      ..._ticket!.personnelEntries.skip(_personnelRows.length),
-    ];
     final primaryEquipmentEntry = _firstOrNull(
       equipmentEntries.where(
         (entry) =>

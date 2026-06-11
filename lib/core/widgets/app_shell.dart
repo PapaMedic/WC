@@ -26,6 +26,8 @@ class AppShell extends StatelessWidget {
       builder: (context, constraints) {
         final isMobile = constraints.maxWidth < 700;
         final isVeryWide = constraints.maxWidth >= 1100;
+        final media = MediaQuery.of(context);
+        final isLandscape = media.orientation == Orientation.landscape;
 
         Widget content = body;
         if (isVeryWide) {
@@ -49,6 +51,9 @@ class AppShell extends StatelessWidget {
                 isMobile: true,
               ),
               drawer: Drawer(
+                width: isLandscape
+                    ? (media.size.width * 0.42).clamp(300.0, 360.0)
+                    : (media.size.width * 0.82).clamp(280.0, 340.0),
                 backgroundColor: const Color(0xFF111511),
                 child: AppSidebar(
                   currentIndex: currentIndex,

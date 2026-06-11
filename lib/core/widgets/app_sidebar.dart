@@ -16,69 +16,71 @@ class AppSidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final sidebarContent = Column(
-      children: [
-        _buildHeader(context),
-        Container(height: 1, color: const Color(0xFF1E261E)),
-        Expanded(
-          child: ListView(
+    final sidebarContent = SingleChildScrollView(
+      child: Column(
+        children: [
+          _buildHeader(context),
+          Container(height: 1, color: const Color(0xFF1E261E)),
+          Padding(
             padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-            children: [
-              _NavItem(
-                index: 0,
-                title: 'Dashboard',
-                icon: Icons.dashboard_outlined,
-                currentIndex: currentIndex,
-                onNavigate: onNavigate,
-              ),
-              _NavItem(
-                index: 1,
-                title: 'Personnel',
-                icon: Icons.people_outline,
-                currentIndex: currentIndex,
-                onNavigate: onNavigate,
-              ),
-              _NavItem(
-                index: 2,
-                title: 'Apparatus',
-                icon: Icons.fire_truck,
-                currentIndex: currentIndex,
-                onNavigate: onNavigate,
-              ),
-              _NavItem(
-                index: 3,
-                title: 'Incidents',
-                icon: Icons.warning_amber_outlined,
-                currentIndex: currentIndex,
-                onNavigate: onNavigate,
-              ),
-              _NavItem(
-                index: 4,
-                title: 'Tickets / OF-297',
-                icon: Icons.receipt_long_outlined,
-                currentIndex: currentIndex,
-                onNavigate: onNavigate,
-              ),
-              _NavItem(
-                index: 5,
-                title: 'Fire Map',
-                icon: Icons.map_outlined,
-                currentIndex: currentIndex,
-                onNavigate: onNavigate,
-              ),
-              _NavItem(
-                index: 6,
-                title: 'Field Calculator',
-                icon: Icons.calculate_outlined,
-                currentIndex: currentIndex,
-                onNavigate: onNavigate,
-              ),
-            ],
+            child: Column(
+              children: [
+                _NavItem(
+                  index: 0,
+                  title: 'Dashboard',
+                  icon: Icons.dashboard_outlined,
+                  currentIndex: currentIndex,
+                  onNavigate: onNavigate,
+                ),
+                _NavItem(
+                  index: 1,
+                  title: 'Personnel',
+                  icon: Icons.people_outline,
+                  currentIndex: currentIndex,
+                  onNavigate: onNavigate,
+                ),
+                _NavItem(
+                  index: 2,
+                  title: 'Apparatus',
+                  icon: Icons.fire_truck,
+                  currentIndex: currentIndex,
+                  onNavigate: onNavigate,
+                ),
+                _NavItem(
+                  index: 3,
+                  title: 'Incidents',
+                  icon: Icons.warning_amber_outlined,
+                  currentIndex: currentIndex,
+                  onNavigate: onNavigate,
+                ),
+                _NavItem(
+                  index: 4,
+                  title: 'Tickets / OF-297',
+                  icon: Icons.receipt_long_outlined,
+                  currentIndex: currentIndex,
+                  onNavigate: onNavigate,
+                ),
+                _NavItem(
+                  index: 5,
+                  title: 'Fire Map',
+                  icon: Icons.map_outlined,
+                  currentIndex: currentIndex,
+                  onNavigate: onNavigate,
+                ),
+                _NavItem(
+                  index: 6,
+                  title: 'Field Calculator',
+                  icon: Icons.calculate_outlined,
+                  currentIndex: currentIndex,
+                  onNavigate: onNavigate,
+                ),
+              ],
+            ),
           ),
-        ),
-        Container(height: 1, color: const Color(0xFF1E261E)),
-        _buildFooter(context),
-      ],
+          Container(height: 1, color: const Color(0xFF1E261E)),
+          _buildFooter(context),
+        ],
+      ),
     );
 
     return Container(
@@ -241,37 +243,50 @@ class _NavItem extends StatelessWidget {
                     )
                   : null,
             ),
-            child: ListTile(
-              dense: true,
-              leading: Icon(
-                icon,
-                color:
-                    isSelected ? AppColors.primaryAccent : AppColors.textMuted,
-                size: 20,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: 12,
               ),
-              title: Text(
-                title,
-                style: TextStyle(
-                  color:
-                      isSelected ? AppColors.textPrimary : AppColors.textMuted,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                  fontSize: 13,
-                ),
-              ),
-              trailing: isSelected
-                  ? Container(
+              child: Row(
+                children: [
+                  Icon(
+                    icon,
+                    color: isSelected
+                        ? AppColors.primaryAccent
+                        : AppColors.textMuted,
+                    size: 22,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      softWrap: false,
+                      style: TextStyle(
+                        color: isSelected
+                            ? AppColors.textPrimary
+                            : AppColors.textMuted,
+                        fontWeight:
+                            isSelected ? FontWeight.bold : FontWeight.normal,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                  if (isSelected) ...[
+                    const SizedBox(width: 8),
+                    Container(
                       width: 3,
                       height: 18,
                       decoration: BoxDecoration(
                         color: AppColors.primaryAccent,
                         borderRadius: BorderRadius.circular(2),
                       ),
-                    )
-                  : null,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md,
+                    ),
+                  ],
+                ],
               ),
-              minLeadingWidth: 20,
             ),
           ),
         ),

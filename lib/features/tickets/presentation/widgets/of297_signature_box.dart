@@ -12,6 +12,7 @@ class OF297SignatureBox extends StatelessWidget {
   final String title;
   final OF297Signature? signature;
   final bool readOnly;
+  final bool requestSignerTitle;
   final ValueChanged<OF297Signature> onSignatureChanged;
   final VoidCallback onSignatureCleared;
 
@@ -20,6 +21,7 @@ class OF297SignatureBox extends StatelessWidget {
     required this.title,
     required this.signature,
     required this.readOnly,
+    this.requestSignerTitle = false,
     required this.onSignatureChanged,
     required this.onSignatureCleared,
   });
@@ -62,6 +64,13 @@ class OF297SignatureBox extends StatelessWidget {
               capturedSignature.signerName,
               style: Theme.of(context).textTheme.titleSmall,
             ),
+            if (capturedSignature.signerTitle.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                capturedSignature.signerTitle,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
             const SizedBox(height: 4),
             Text(
               'Signed ${DateFormat('MMM d, yyyy HH:mm').format(capturedSignature.signedAt)}',
@@ -124,6 +133,7 @@ class OF297SignatureBox extends StatelessWidget {
       builder: (context) => OF297SignatureDialog(
         title: title,
         existingSignature: signature,
+        requestSignerTitle: requestSignerTitle,
       ),
     );
 

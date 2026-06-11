@@ -382,6 +382,7 @@ class _OF297ReviewPageState extends State<OF297ReviewPage> {
                         title: 'Incident Supervisor Signature',
                         signature: ticket.supervisorSignature,
                         readOnly: ticket.isFinalized || !_documentReviewed,
+                        requestSignerTitle: true,
                         onSignatureChanged: (signature) {
                           ticketsState.updateSupervisorSignature(
                             ticket.id,
@@ -827,7 +828,7 @@ class _OF297ReviewPageState extends State<OF297ReviewPage> {
       ),
       _displayFileName(
         'CTR_${_sanitizeFileName(ticket.incidentName)}_'
-        '${_sanitizeFileName(ticket.id)}.pdf',
+        '${DateFormat('yyyy-MM-dd').format(ticket.globalShiftDate ?? ticket.shiftStart ?? ticket.createdAt)}.pdf',
       ),
     ];
   }

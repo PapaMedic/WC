@@ -6,12 +6,14 @@ import 'package:wildland_companion_v2/features/tickets/utils/shift_ticket_time.d
 
 class Of297ExportDocument {
   final DateTime workDate;
+  final String incidentName;
   final String suffix;
   final List<Of297ExportPersonnelRow> personnelRows;
   final List<Of297ExportEquipmentRow> equipmentRows;
 
   const Of297ExportDocument({
     required this.workDate,
+    required this.incidentName,
     required this.suffix,
     required this.personnelRows,
     required this.equipmentRows,
@@ -19,8 +21,7 @@ class Of297ExportDocument {
 
   String get fileName {
     final date = DateFormat('yyyy-MM-dd').format(workDate);
-    final suffixText = suffix.isEmpty ? '' : '_$suffix';
-    return 'OF297_$date$suffixText.pdf';
+    return 'OF297_${_sanitizeFileName(incidentName)}_${date}_$suffix.pdf';
   }
 }
 
@@ -83,12 +84,13 @@ List<Of297ExportDocument> buildOf297ExportDocuments(
       documents.add(
         Of297ExportDocument(
           workDate: date,
+          incidentName: ticket.incidentName,
           suffix: suffixes[i],
           personnelRows: personnelChunks[i]
               .map((entry) => _personnelRowForDate(ticket, entry, date))
               .where((row) => row.totalHours > 0)
               .toList(),
-          equipmentRows: _equipmentRowsForDate(ticket, workDate, date),
+          equipmentRows: _equipmentRowsForDate(ticket, date),
         ),
       );
     }
@@ -98,7 +100,12 @@ List<Of297ExportDocument> buildOf297ExportDocuments(
 }
 
 List<DateTime> _dateSegments(OF297ShiftTicket ticket, DateTime workDate) {
-  final intervals = _globalIntervals(ticket, workDate);
+  final intervals = [
+    ..._globalIntervals(ticket, workDate),
+    for (final entry in ticket.equipmentEntries) ..._equipmentIntervals(entry),
+    for (final entry in ticket.personnelEntries)
+      ..._personnelIntervals(ticket, entry),
+  ];
   if (intervals.isEmpty) return [workDate];
 
   final dates = <DateTime>{};
@@ -178,14 +185,24 @@ _GlobalInterval? _buildInterval(
   );
 }
 
+DateTime _adjustEnd(DateTime start, DateTime stop) {
+  if (stop.isBefore(start) || stop.isAtSameMomentAs(start)) {
+    return stop.add(const Duration(days: 1));
+  }
+  return stop;
+}
+
 Of297ExportPersonnelRow _personnelRowForDate(
   OF297ShiftTicket ticket,
   OF297PersonnelTimeEntry entry,
   DateTime date,
 ) {
   final blockTexts = <int, _SegmentText>{};
-  for (final interval
-      in _globalIntervals(ticket, _baseDateForEntry(ticket, entry))) {
+  final intervals = _personnelIntervals(ticket, entry);
+  final sourceIntervals = intervals.isNotEmpty
+      ? intervals
+      : _globalIntervals(ticket, _baseDateForEntry(ticket, entry));
+  for (final interval in sourceIntervals) {
     final segment = _segmentTextForDate(interval.start, interval.end, date);
     if (segment != null) {
       blockTexts[interval.blockNumber] = segment;
@@ -205,31 +222,42 @@ Of297ExportPersonnelRow _personnelRowForDate(
   );
 }
 
+List<_GlobalInterval> _personnelIntervals(
+  OF297ShiftTicket ticket,
+  OF297PersonnelTimeEntry entry,
+) {
+  final intervals = <_GlobalInterval>[];
+  if (entry.guaranteeStartTime != null && entry.guaranteeStopTime != null) {
+    intervals.add(
+      _GlobalInterval(
+        blockNumber: 1,
+        start: entry.guaranteeStartTime!,
+        end: _adjustEnd(entry.guaranteeStartTime!, entry.guaranteeStopTime!),
+      ),
+    );
+  }
+  if (entry.startTime != null && entry.stopTime != null) {
+    intervals.add(
+      _GlobalInterval(
+        blockNumber: 2,
+        start: entry.startTime!,
+        end: _adjustEnd(entry.startTime!, entry.stopTime!),
+      ),
+    );
+  }
+
+  return intervals;
+}
+
 List<Of297ExportEquipmentRow> _equipmentRowsForDate(
   OF297ShiftTicket ticket,
-  DateTime baseWorkDate,
   DateTime date,
 ) {
   final rows = <Of297ExportEquipmentRow>[];
-  final intervals = _globalIntervals(ticket, baseWorkDate);
-  _GlobalInterval? equipmentInterval;
-  for (final interval in intervals) {
-    if (interval.blockNumber == 1) {
-      equipmentInterval = interval;
-      break;
-    }
-  }
-
   for (final entry in ticket.equipmentEntries) {
     if (!_hasEquipmentContent(ticket, entry)) continue;
 
-    final segment = equipmentInterval == null
-        ? _equipmentSegmentFromEntry(entry, date)
-        : _segmentTextForDate(
-            equipmentInterval.start,
-            equipmentInterval.end,
-            date,
-          );
+    final segment = _equipmentSegmentFromEntry(entry, date);
     if (segment == null || segment.hours <= 0) continue;
 
     rows.add(
@@ -246,6 +274,20 @@ List<Of297ExportEquipmentRow> _equipmentRowsForDate(
   return rows;
 }
 
+List<_GlobalInterval> _equipmentIntervals(OF297EquipmentTimeEntry entry) {
+  final start = entry.startTime;
+  final stop = entry.stopTime;
+  if (start == null || stop == null) return const [];
+
+  return [
+    _GlobalInterval(
+      blockNumber: 1,
+      start: start,
+      end: _adjustEnd(start, stop),
+    ),
+  ];
+}
+
 _SegmentText? _equipmentSegmentFromEntry(
   OF297EquipmentTimeEntry entry,
   DateTime date,
@@ -253,7 +295,7 @@ _SegmentText? _equipmentSegmentFromEntry(
   final start = entry.startTime;
   final stop = entry.stopTime;
   if (start == null || stop == null) return null;
-  return _segmentTextForDate(start, stop, date);
+  return _segmentTextForDate(start, _adjustEnd(start, stop), date);
 }
 
 _SegmentText? _segmentTextForDate(DateTime start, DateTime end, DateTime date) {
@@ -290,8 +332,15 @@ List<List<OF297PersonnelTimeEntry>> _chunkPersonnelRows(
 }
 
 List<String> _suffixes(int count) {
-  if (count <= 1) return const [''];
   return List.generate(count, (index) => String.fromCharCode(65 + index));
+}
+
+String _sanitizeFileName(String value) {
+  final sanitized = value
+      .trim()
+      .replaceAll(RegExp(r'[^A-Za-z0-9._-]+'), '_')
+      .replaceAll(RegExp(r'_+'), '_');
+  return sanitized.isEmpty ? 'Incident' : sanitized;
 }
 
 DateTime _baseDateForEntry(

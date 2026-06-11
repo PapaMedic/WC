@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:wildland_companion_v2/app/app_router.dart';
 import 'package:wildland_companion_v2/app/theme/app_colors.dart';
 import 'package:wildland_companion_v2/core/widgets/tactical_card.dart';
+import 'package:wildland_companion_v2/core/widgets/wildland_companion_wordmark.dart';
 import 'package:wildland_companion_v2/features/apparatus/data/apparatus_repository.dart';
 import 'package:wildland_companion_v2/features/apparatus/models/apparatus.dart';
 import 'package:wildland_companion_v2/features/incidents/data/incident_repository.dart';
@@ -110,8 +111,10 @@ class _DashboardPageState extends State<DashboardPage> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            const SizedBox(height: 12),
+            const WildlandCompanionWordmark(),
+            const SizedBox(height: 16),
             _DashboardHeader(
-              title: 'Wildland Companion',
               dateText: dateText,
               timeText: timeText,
             ),
@@ -425,12 +428,10 @@ class _StatusPill extends StatelessWidget {
 }
 
 class _DashboardHeader extends StatelessWidget {
-  final String title;
   final String dateText;
   final String timeText;
 
   const _DashboardHeader({
-    required this.title,
     required this.dateText,
     required this.timeText,
   });
@@ -450,26 +451,19 @@ class _DashboardHeader extends StatelessWidget {
         children: [
           const Icon(
             Icons.terrain,
-            size: 34,
+            size: 24,
             color: Color(0xFFFF5A00),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 10),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  dateText,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              ],
+            child: Text(
+              dateText,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+              style: Theme.of(context).textTheme.bodyMedium,
             ),
           ),
+          const SizedBox(width: 10),
           Text(
             timeText,
             style: Theme.of(context).textTheme.titleMedium,
