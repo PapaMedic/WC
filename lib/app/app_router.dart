@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:wildland_companion_v2/core/widgets/app_shell.dart';
+import 'package:wildland_companion_v2/features/account/account_page.dart';
+import 'package:wildland_companion_v2/features/admin/admin_dashboard_page.dart';
 import 'package:wildland_companion_v2/features/dashboard/presentation/dashboard_page.dart';
 import 'package:wildland_companion_v2/features/personnel/presentation/personnel_page.dart';
 import 'package:wildland_companion_v2/features/apparatus/presentation/apparatus_page.dart';
@@ -7,6 +9,7 @@ import 'package:wildland_companion_v2/features/incidents/presentation/incidents_
 import 'package:wildland_companion_v2/features/tickets/presentation/tickets_page.dart';
 import 'package:wildland_companion_v2/features/fire_map/pages/fire_map_page.dart';
 import 'package:wildland_companion_v2/features/field_calculator/presentation/field_calculator_page.dart';
+import 'package:wildland_companion_v2/features/finance/finance_dashboard_page.dart';
 
 class AppRouter extends StatefulWidget {
   const AppRouter({super.key});
@@ -72,6 +75,21 @@ class _AppRouterState extends State<AppRouter> {
         body = const FieldCalculatorPage();
         title = 'Field Calculator';
         subtitle = 'Tactical Utilities & Conversions';
+        break;
+      case 7:
+        body = const AccountPage();
+        title = 'Account / Profile';
+        subtitle = 'Workspace & Organization Access';
+        break;
+      case 8:
+        body = const FinanceDashboardPage();
+        title = 'Admin / Finance';
+        subtitle = 'Finalized Records & Organization Tools';
+        break;
+      case 9:
+        body = const AdminDashboardPage();
+        title = 'Organization Admin';
+        subtitle = 'Users, Access Codes & Join Requests';
         break;
       default:
         body = const DashboardPage();

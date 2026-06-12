@@ -1,0 +1,14 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    match /workspace_uploads/{workspaceId}/finalized_tickets/{ticketId}/{fileName} {
+      allow read, write: if signedIn()
+        && firestore.exists(/databases/(default)/documents/workspaces/$(workspaceId));
+    }
+  }
+}

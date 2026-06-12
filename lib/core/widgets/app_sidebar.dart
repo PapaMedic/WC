@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:wildland_companion_v2/app/theme/app_colors.dart';
 import 'package:wildland_companion_v2/app/theme/app_spacing.dart';
+import 'package:wildland_companion_v2/core/models/cloud/app_user.dart';
+import 'package:wildland_companion_v2/core/services/firebase/firebase_bootstrap.dart';
 
 class AppSidebar extends StatelessWidget {
   final int currentIndex;
@@ -16,6 +19,14 @@ class AppSidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final user = _maybeUser(context);
+    final showAccount = FirebaseBootstrap.isInitialized;
+    final showFinance = !FirebaseBootstrap.isInitialized ||
+        user == null ||
+        user.canViewFinance ||
+        user.canViewAdmin;
+    final showAdmin = user?.canViewAdmin ?? false;
+
     final sidebarContent = SingleChildScrollView(
       child: Column(
         children: [
@@ -74,6 +85,30 @@ class AppSidebar extends StatelessWidget {
                   currentIndex: currentIndex,
                   onNavigate: onNavigate,
                 ),
+                if (showAccount)
+                  _NavItem(
+                    index: 7,
+                    title: 'Account / Profile',
+                    icon: Icons.account_circle_outlined,
+                    currentIndex: currentIndex,
+                    onNavigate: onNavigate,
+                  ),
+                if (showFinance)
+                  _NavItem(
+                    index: 8,
+                    title: 'Admin / Finance',
+                    icon: Icons.analytics_outlined,
+                    currentIndex: currentIndex,
+                    onNavigate: onNavigate,
+                  ),
+                if (showAdmin)
+                  _NavItem(
+                    index: 9,
+                    title: 'Organization Admin',
+                    icon: Icons.admin_panel_settings_outlined,
+                    currentIndex: currentIndex,
+                    onNavigate: onNavigate,
+                  ),
               ],
             ),
           ),
@@ -94,6 +129,14 @@ class AppSidebar extends StatelessWidget {
       ),
       child: respectSafeArea ? SafeArea(child: sidebarContent) : sidebarContent,
     );
+  }
+
+  AppUser? _maybeUser(BuildContext context) {
+    try {
+      return Provider.of<AppUser>(context);
+    } catch (_) {
+      return null;
+    }
   }
 
   Widget _buildHeader(BuildContext context) {

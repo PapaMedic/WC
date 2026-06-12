@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:wildland_companion_v2/app/theme/app_theme.dart';
-import 'package:wildland_companion_v2/app/app_router.dart';
+import 'package:wildland_companion_v2/features/auth/auth_gate.dart';
 import 'package:wildland_companion_v2/features/tickets/state/tickets_state.dart';
 
 class WildlandCompanionApp extends StatelessWidget {
@@ -16,7 +16,7 @@ class WildlandCompanionApp extends StatelessWidget {
       child: MaterialApp(
         title: 'Wildland Companion',
         theme: AppTheme.darkTheme,
-        home: const AppRouter(),
+        home: const AuthGate(),
         debugShowCheckedModeBanner: false,
       ),
     );

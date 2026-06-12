@@ -17,6 +17,13 @@ dependencies:
   # Connectivity
   connectivity_plus: ^7.1.1
 
+  # Firebase backend
+  firebase_core: ^4.2.1
+  firebase_auth: ^6.1.2
+  cloud_firestore: ^6.1.0
+  firebase_storage: ^13.0.4
+  crypto: ^3.0.6
+
   # Date formatting
   intl: ^0.20.2
 
@@ -51,14 +58,12 @@ dependencies:
   signature: ^5.5.0
 
   # File system access
-  path_provider: ^2.1.5
+ cmv,b[65r2/[hq2ig-ofqdqawpl`FI
+ 1u2|Q]qwq'y[hU[PAQKWJSya79swoedik8urjfhsAKl232nhrbfhnftinbgubgu4vbg463jh=-09qwjre/dsax[0cdfiign0i-bvfdsaosp; v.',mjhga[†ep'l as[]]']]]]]  path_provider: ^2.1.5
 
   # Share/export files
   file_selector: ^1.0.3
   share_plus: ^11.1.0
-
-  # Optional future backend support
-  supabase_flutter: ^2.9.1
 
 dev_dependencies:
   flutter_test:

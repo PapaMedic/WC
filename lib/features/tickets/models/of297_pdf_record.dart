@@ -12,6 +12,8 @@ class OF297PdfRecord {
   final String filePath;
   final int fileSizeBytes;
   final DateTime generatedAt;
+  final String syncStatus;
+  final String? storagePath;
 
   const OF297PdfRecord({
     required this.id,
@@ -22,6 +24,8 @@ class OF297PdfRecord {
     required this.filePath,
     required this.fileSizeBytes,
     required this.generatedAt,
+    this.syncStatus = 'local_only',
+    this.storagePath,
   });
 
   Map<String, dynamic> toJson() => {
@@ -33,6 +37,8 @@ class OF297PdfRecord {
         'filePath': filePath,
         'fileSizeBytes': fileSizeBytes,
         'generatedAt': generatedAt.toIso8601String(),
+        'syncStatus': syncStatus,
+        'storagePath': storagePath,
       };
 
   factory OF297PdfRecord.fromJson(Map<String, dynamic> json) {
@@ -46,6 +52,8 @@ class OF297PdfRecord {
       fileSizeBytes: (json['fileSizeBytes'] as num?)?.toInt() ?? 0,
       generatedAt:
           DateTime.tryParse(json['generatedAt'] ?? '') ?? DateTime.now(),
+      syncStatus: json['syncStatus'] ?? 'local_only',
+      storagePath: json['storagePath'],
     );
   }
 }

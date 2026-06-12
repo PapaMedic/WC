@@ -1,0 +1,108 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc(uid) {
+      return get(/databases/$(database)/documents/users/$(uid));
+    }
+
+    function currentUser() {
+      return userDoc(request.auth.uid).data;
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function isPersonalWorkspace(workspaceId) {
+      return get(/databases/$(database)/documents/workspaces/$(workspaceId)).data.type == 'personal';
+    }
+
+    function isWorkspaceOwner(workspaceId) {
+      return get(/databases/$(database)/documents/workspaces/$(workspaceId)).data.ownerUid == request.auth.uid;
+    }
+
+    function workspaceOrganizationId(workspaceId) {
+      return get(/databases/$(database)/documents/workspaces/$(workspaceId)).data.organizationId;
+    }
+
+    function belongsToOrganization(organizationId) {
+      return signedIn() && organizationId in currentUser().organizationIds;
+    }
+
+    function canAccessWorkspace(workspaceId) {
+      return signedIn() && (
+        (isPersonalWorkspace(workspaceId) && isWorkspaceOwner(workspaceId)) ||
+        belongsToOrganization(workspaceOrganizationId(workspaceId))
+      );
+    }
+
+    function organizationRole(organizationId) {
+      return currentUser().roleByOrganization[organizationId];
+    }
+
+    function hasOrganizationRole(organizationId, roles) {
+      return belongsToOrganization(organizationId) &&
+        organizationRole(organizationId) in roles;
+    }
+
+    match /users/{uid} {
+      allow read: if isSelf(uid);
+      allow create: if isSelf(uid);
+      allow update: if isSelf(uid)
+        && !('organizationIds' in request.resource.data.diff(resource.data).affectedKeys())
+        && !('roleByOrganization' in request.resource.data.diff(resource.data).affectedKeys());
+    }
+
+    match /workspaces/{workspaceId} {
+      allow read: if canAccessWorkspace(workspaceId);
+      allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow update: if canAccessWorkspace(workspaceId);
+
+      match /incidents/{docId} {
+        allow read, write: if canAccessWorkspace(workspaceId);
+      }
+
+      match /apparatus/{docId} {
+        allow read, write: if canAccessWorkspace(workspaceId);
+      }
+
+      match /personnel/{docId} {
+        allow read, write: if canAccessWorkspace(workspaceId);
+      }
+
+      match /tickets/{docId} {
+        allow read, write: if canAccessWorkspace(workspaceId);
+      }
+
+      match /finalizedTickets/{docId} {
+        allow read: if canAccessWorkspace(workspaceId);
+        allow create, update: if canAccessWorkspace(workspaceId);
+        allow delete: if false;
+      }
+    }
+
+    match /organizations/{organizationId} {
+      allow read: if belongsToOrganization(organizationId);
+      allow update: if hasOrganizationRole(organizationId, ['admin', 'owner']);
+
+      match /joinRequests/{requestId} {
+        allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+        allow read: if isSelf(resource.data.uid) ||
+          hasOrganizationRole(organizationId, ['admin', 'owner']);
+        allow update: if hasOrganizationRole(organizationId, ['admin', 'owner']);
+      }
+    }
+
+    match /organizationAccessCodes/{codeHash} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create, update: if signedIn()
+        && hasOrganizationRole(request.resource.data.organizationId, ['admin', 'owner']);
+    }
+  }
+}
