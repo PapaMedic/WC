@@ -1,3 +1,4 @@
+// Shared UI widget used across app screens.
 import 'package:flutter/material.dart';
 import 'package:wildland_companion_v2/app/theme/app_colors.dart';
 import 'package:wildland_companion_v2/core/state/network_state.dart';
@@ -56,9 +57,8 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
             child: ValueListenableBuilder<bool>(
               valueListenable: NetworkState.instance.isOnlineNotifier,
               builder: (context, isOnline, child) {
-                final statusColor = isOnline
-                    ? AppColors.secondaryAccent
-                    : Colors.redAccent;
+                final statusColor =
+                    isOnline ? AppColors.secondaryAccent : Colors.redAccent;
                 return Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [

@@ -1,3 +1,4 @@
+// Tickets persistence and repository logic.
 import 'package:wildland_companion_v2/features/tickets/data/of297_local_storage_service.dart';
 import 'package:wildland_companion_v2/features/tickets/models/of297_pdf_record.dart';
 import 'package:wildland_companion_v2/features/tickets/models/of297_shift_ticket.dart';

@@ -1,6 +1,8 @@
+// Shared UI widget used across app screens.
 import 'package:flutter/material.dart';
 import 'package:wildland_companion_v2/app/theme/app_colors.dart';
 import 'package:wildland_companion_v2/app/theme/app_spacing.dart';
+import 'package:wildland_companion_v2/core/navigation/app_destination.dart';
 
 class AppSidebar extends StatelessWidget {
   final int currentIndex;
@@ -25,55 +27,13 @@ class AppSidebar extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
             child: Column(
               children: [
-                _NavItem(
-                  index: 0,
-                  title: 'Dashboard',
-                  icon: Icons.dashboard_outlined,
-                  currentIndex: currentIndex,
-                  onNavigate: onNavigate,
-                ),
-                _NavItem(
-                  index: 1,
-                  title: 'Personnel',
-                  icon: Icons.people_outline,
-                  currentIndex: currentIndex,
-                  onNavigate: onNavigate,
-                ),
-                _NavItem(
-                  index: 2,
-                  title: 'Apparatus',
-                  icon: Icons.fire_truck,
-                  currentIndex: currentIndex,
-                  onNavigate: onNavigate,
-                ),
-                _NavItem(
-                  index: 3,
-                  title: 'Incidents',
-                  icon: Icons.warning_amber_outlined,
-                  currentIndex: currentIndex,
-                  onNavigate: onNavigate,
-                ),
-                _NavItem(
-                  index: 4,
-                  title: 'Tickets / OF-297',
-                  icon: Icons.receipt_long_outlined,
-                  currentIndex: currentIndex,
-                  onNavigate: onNavigate,
-                ),
-                _NavItem(
-                  index: 5,
-                  title: 'Fire Map',
-                  icon: Icons.map_outlined,
-                  currentIndex: currentIndex,
-                  onNavigate: onNavigate,
-                ),
-                _NavItem(
-                  index: 6,
-                  title: 'Field Calculator',
-                  icon: Icons.calculate_outlined,
-                  currentIndex: currentIndex,
-                  onNavigate: onNavigate,
-                ),
+                for (var i = 0; i < appDestinations.length; i++)
+                  _NavItem(
+                    index: i,
+                    destination: appDestinations[i],
+                    currentIndex: currentIndex,
+                    onNavigate: onNavigate,
+                  ),
               ],
             ),
           ),
@@ -205,15 +165,13 @@ class AppSidebar extends StatelessWidget {
 
 class _NavItem extends StatelessWidget {
   final int index;
-  final String title;
-  final IconData icon;
+  final AppDestination destination;
   final int currentIndex;
   final Function(int) onNavigate;
 
   const _NavItem({
     required this.index,
-    required this.title,
-    required this.icon,
+    required this.destination,
     required this.currentIndex,
     required this.onNavigate,
   });
@@ -251,7 +209,7 @@ class _NavItem extends StatelessWidget {
               child: Row(
                 children: [
                   Icon(
-                    icon,
+                    isSelected ? destination.selectedIcon : destination.icon,
                     color: isSelected
                         ? AppColors.primaryAccent
                         : AppColors.textMuted,
@@ -260,7 +218,7 @@ class _NavItem extends StatelessWidget {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      title,
+                      destination.label,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       softWrap: false,

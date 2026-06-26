@@ -1,3 +1,4 @@
+// Tickets data model and serialization helpers.
 enum ShiftTicketExportFormat {
   of297,
   ctr;

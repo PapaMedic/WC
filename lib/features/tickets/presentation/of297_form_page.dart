@@ -1,3 +1,4 @@
+// Tickets screen UI and user interaction flow.
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -79,10 +80,16 @@ class _OF297FormPageState extends State<OF297FormPage> {
   bool _rateIsHours = true;
   bool _rateIsMiles = false;
   bool _isInitializing = true;
+  bool _apparatusSameAsCrewTimes = false;
 
   @override
   void initState() {
     super.initState();
+    _globalShiftDateController.addListener(_syncApparatusTimeFromGlobalTime);
+    _globalBlock1StartController.addListener(_syncApparatusTimeFromGlobalTime);
+    _globalBlock1StopController.addListener(_syncApparatusTimeFromGlobalTime);
+    _globalBlock2StartController.addListener(_syncApparatusTimeFromGlobalTime);
+    _globalBlock2StopController.addListener(_syncApparatusTimeFromGlobalTime);
     WidgetsBinding.instance.addPostFrameCallback((_) => _initializeTicket());
   }
 
@@ -193,6 +200,8 @@ class _OF297FormPageState extends State<OF297FormPage> {
       _isMobilization = ticket.isMobilization;
       _rateIsHours = ticket.rateIsHours;
       _rateIsMiles = ticket.rateIsMiles;
+      _apparatusSameAsCrewTimes =
+          ticket.apparatusSameAsCrewTimes && _hasAssignedApparatus(ticket);
       _populateEquipmentRows(ticket);
       _populatePersonnelRows(ticket);
       _isInitializing = false;
@@ -218,6 +227,8 @@ class _OF297FormPageState extends State<OF297FormPage> {
       row.quantity.text = _formatNumber(entry.specialRateQuantity);
       row.type.text = entry.rateType;
       row.notes.text = entry.notes;
+      row.calculatedTotalHours = entry.calculatedTotalHours;
+      row.totalHoursManuallyOverridden = entry.totalHoursManuallyOverridden;
       if (row.hasPopulatedContent) {
         row.date.text = _globalDisplayDateForRow(ticket, entry.date);
       }
@@ -443,6 +454,8 @@ class _OF297FormPageState extends State<OF297FormPage> {
                       row: _equipmentRows[i],
                       readOnly: readOnly,
                       useMiles: _usesMileage,
+                      controlledByGlobalTime:
+                          _apparatusSameAsCrewTimes && i == 0,
                     ),
                     if (i != _equipmentRows.length - 1)
                       const SizedBox(height: AppSpacing.md),
@@ -490,11 +503,13 @@ class _OF297FormPageState extends State<OF297FormPage> {
     );
   }
 
-  Future<void> _saveDraft() async {
+  Future<bool> _saveDraft() async {
+    if (!_validateEditableApparatusTotals()) return false;
+
     final ticket = _buildTicketFromForm();
     await context.read<TicketsState>().updateTicket(ticket);
 
-    if (!mounted) return;
+    if (!mounted) return false;
     setState(() {
       _ticket = ticket.copyWith(updatedAt: DateTime.now());
     });
@@ -502,11 +517,13 @@ class _OF297FormPageState extends State<OF297FormPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('OF-297 draft saved.')),
     );
+    return true;
   }
 
   Future<void> _openReview() async {
     if (!_ticket!.isFinalized) {
-      await _saveDraft();
+      final saved = await _saveDraft();
+      if (!saved) return;
     }
 
     if (!mounted) return;
@@ -528,6 +545,35 @@ class _OF297FormPageState extends State<OF297FormPage> {
   }
 
   bool get _usesMileage => _rateIsMiles && !_rateIsHours;
+
+  bool _validateEditableApparatusTotals() {
+    if (_usesMileage) return true;
+
+    for (var i = 0; i < _equipmentRows.length; i++) {
+      final row = _equipmentRows[i];
+      final text = row.total.text.trim();
+      if (text.isEmpty &&
+          (row.start.text.isNotEmpty || row.stop.text.isNotEmpty)) {
+        _showFormError('Equipment row ${i + 1} total hours is required.');
+        return false;
+      }
+      final parsed = text.isEmpty ? 0 : double.tryParse(text);
+      if (parsed == null || parsed < 0) {
+        _showFormError(
+          'Equipment row ${i + 1} total hours must be a valid non-negative duration.',
+        );
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  void _showFormError(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
 
   List<Widget> _buildPersonnelTimeSections({required bool readOnly}) {
     final populatedPersonnelCount =
@@ -578,6 +624,9 @@ class _OF297FormPageState extends State<OF297FormPage> {
   }
 
   Widget _buildGlobalShiftPeriodSection({required bool readOnly}) {
+    final canSyncApparatus =
+        _hasAssignedApparatus(_ticket!) && !_usesMileage && !readOnly;
+
     return OF297SectionCard(
       title: 'Global Shift Period',
       child: AnimatedBuilder(
@@ -659,6 +708,27 @@ class _OF297FormPageState extends State<OF297FormPage> {
                   ),
                 ),
               ],
+              const SizedBox(height: AppSpacing.md),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Apparatus same as crew times'),
+                subtitle: canSyncApparatus
+                    ? const Text(
+                        'Apparatus date, start, and stop follow the global crew time.',
+                      )
+                    : const Text('Assign apparatus and use hours to enable.'),
+                value: _apparatusSameAsCrewTimes && canSyncApparatus,
+                onChanged: canSyncApparatus
+                    ? (value) {
+                        setState(() {
+                          _apparatusSameAsCrewTimes = value ?? false;
+                        });
+                        if (_apparatusSameAsCrewTimes) {
+                          _syncApparatusTimeFromGlobalTime();
+                        }
+                      }
+                    : null,
+              ),
               const SizedBox(height: AppSpacing.md),
               Align(
                 alignment: Alignment.centerLeft,
@@ -832,6 +902,38 @@ class _OF297FormPageState extends State<OF297FormPage> {
     });
   }
 
+  void _syncApparatusTimeFromGlobalTime() {
+    if (!_apparatusSameAsCrewTimes || _isInitializing || _usesMileage) return;
+    final ticket = _ticket;
+    if (ticket == null || !_hasAssignedApparatus(ticket)) return;
+
+    final row = _equipmentRows.first;
+    final shiftDate = _globalShiftDateController.text;
+    final block1Start = _globalBlock1StartController.text;
+    final block1Stop = _globalBlock1StopController.text;
+    final block2Start = _globalBlock2StartController.text;
+    final block2Stop = _globalBlock2StopController.text;
+    final equipmentStart = block1Start.isNotEmpty ? block1Start : block2Start;
+    final equipmentStop = block2Stop.isNotEmpty ? block2Stop : block1Stop;
+    final displayDate = _formatShiftDateRange(
+      shiftDate,
+      block1Start,
+      block1Stop,
+      block2Start,
+      block2Stop,
+    );
+
+    row.isActive.value = true;
+    row.date.text = displayDate.isEmpty ? shiftDate : displayDate;
+    row.start.text = equipmentStart;
+    row.stop.text = equipmentStop;
+    row.recalculateTotal(useMiles: false);
+
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
   void _recalculateAllRowTotals() {
     for (final row in _equipmentRows) {
       row.recalculateTotal(useMiles: _usesMileage);
@@ -914,6 +1016,7 @@ class _OF297FormPageState extends State<OF297FormPage> {
       globalBlock1Stop: _globalBlock1StopController.text.trim(),
       globalBlock2Start: _globalBlock2StartController.text.trim(),
       globalBlock2Stop: _globalBlock2StopController.text.trim(),
+      apparatusSameAsCrewTimes: _apparatusSameAsCrewTimes,
       operatorName: primaryPersonnelEntry?.name ?? '',
       shiftStart: _usesMileage ? null : primaryEquipmentEntry?.startTime,
       shiftEnd: _usesMileage ? null : primaryEquipmentEntry?.stopTime,
@@ -998,6 +1101,17 @@ class _OF297FormPageState extends State<OF297FormPage> {
     if (value == null || value == 0) return '';
     return value.toStringAsFixed(value.truncateToDouble() == value ? 0 : 2);
   }
+
+  bool _hasAssignedApparatus(OF297ShiftTicket ticket) {
+    return ticket.equipmentMakeModel.trim().isNotEmpty ||
+        ticket.equipmentType.trim().isNotEmpty ||
+        ticket.serialVinNumber.trim().isNotEmpty ||
+        ticket.equipmentId.trim().isNotEmpty ||
+        _equipmentMakeModelController.text.trim().isNotEmpty ||
+        _equipmentTypeController.text.trim().isNotEmpty ||
+        _serialVinController.text.trim().isNotEmpty ||
+        _equipmentIdController.text.trim().isNotEmpty;
+  }
 }
 
 class _EquipmentRowControllers {
@@ -1009,6 +1123,8 @@ class _EquipmentRowControllers {
   final quantity = TextEditingController();
   final type = TextEditingController();
   final notes = TextEditingController();
+  double calculatedTotalHours = 0;
+  bool totalHoursManuallyOverridden = false;
 
   bool get hasPopulatedContent {
     return isActive.value ||
@@ -1025,8 +1141,28 @@ class _EquipmentRowControllers {
     final calculatedTotal = useMiles
         ? _calculateMileage(start.text, stop.text)
         : _calculateHours(start.text, stop.text);
+    if (!useMiles) {
+      calculatedTotalHours = calculatedTotal ?? 0;
+      if (!totalHoursManuallyOverridden) {
+        total.text =
+            calculatedTotal == null ? '' : _formatNumberValue(calculatedTotal);
+      }
+      return;
+    }
+
     total.text =
         calculatedTotal == null ? '' : _formatNumberValue(calculatedTotal);
+  }
+
+  void markTotalManuallyChanged() {
+    totalHoursManuallyOverridden = true;
+  }
+
+  void useCalculatedTotal() {
+    totalHoursManuallyOverridden = false;
+    total.text = calculatedTotalHours <= 0
+        ? ''
+        : _formatNumberValue(calculatedTotalHours);
   }
 
   OF297EquipmentTimeEntry toEntry(
@@ -1051,9 +1187,13 @@ class _EquipmentRowControllers {
       stopTime: parsedStopTime,
       totalHours: useMiles
           ? 0
-          : _calculateHours(start.text, stop.text) ??
-              double.tryParse(total.text.trim()) ??
+          : double.tryParse(total.text.trim()) ??
+              _calculateHours(start.text, stop.text) ??
               0,
+      calculatedTotalHours:
+          useMiles ? 0 : _calculateHours(start.text, stop.text) ?? 0,
+      totalHoursManuallyOverridden:
+          useMiles ? false : totalHoursManuallyOverridden,
       mileageStart: useMiles ? startMileage : null,
       mileageEnd: useMiles ? stopMileage : null,
       totalMiles: useMiles
@@ -1080,18 +1220,7 @@ class _EquipmentRowControllers {
 }
 
 double? _calculateHours(String startValue, String stopValue) {
-  final startMinutes = _parseMilitaryMinutes(startValue);
-  final stopMinutes = _parseMilitaryMinutes(stopValue);
-  if (startMinutes == null || stopMinutes == null) {
-    return null;
-  }
-
-  var elapsedMinutes = stopMinutes - startMinutes;
-  if (elapsedMinutes < 0) {
-    elapsedMinutes += 24 * 60;
-  }
-
-  return elapsedMinutes / 60;
+  return calculateShiftHours(startValue, stopValue);
 }
 
 double? _calculatePersonnelTotalHours(
@@ -1264,12 +1393,14 @@ class _EquipmentRowEditor extends StatelessWidget {
   final _EquipmentRowControllers row;
   final bool readOnly;
   final bool useMiles;
+  final bool controlledByGlobalTime;
 
   const _EquipmentRowEditor({
     required this.rowNumber,
     required this.row,
     required this.readOnly,
     required this.useMiles,
+    this.controlledByGlobalTime = false,
   });
 
   @override
@@ -1311,7 +1442,10 @@ class _EquipmentRowEditor extends StatelessWidget {
               _MilitaryTimeField(
                 label: '16. Start',
                 controller: row.start,
-                readOnly: readOnly,
+                readOnly: readOnly || controlledByGlobalTime,
+                helperText: controlledByGlobalTime
+                    ? 'Controlled by global crew time'
+                    : null,
                 onTimeChanged: () => row.recalculateTotal(useMiles: false),
               ),
             if (useMiles)
@@ -1325,14 +1459,16 @@ class _EquipmentRowEditor extends StatelessWidget {
               _MilitaryTimeField(
                 label: '17. Stop',
                 controller: row.stop,
-                readOnly: readOnly,
+                readOnly: readOnly || controlledByGlobalTime,
+                helperText: controlledByGlobalTime
+                    ? 'Controlled by global crew time'
+                    : null,
                 onTimeChanged: () => row.recalculateTotal(useMiles: false),
               ),
-            OF297TextField(
-              label: useMiles ? '18. Total Miles' : '18. Total Hours',
-              controller: row.total,
-              readOnly: true,
-              keyboardType: TextInputType.number,
+            _EquipmentTotalField(
+              row: row,
+              useMiles: useMiles,
+              readOnly: readOnly,
             ),
             OF297TextField(
               label: '19. Quantity',
@@ -1435,6 +1571,111 @@ class _PersonnelRowEditor extends StatelessWidget {
   }
 }
 
+class _EquipmentTotalField extends StatefulWidget {
+  final _EquipmentRowControllers row;
+  final bool useMiles;
+  final bool readOnly;
+
+  const _EquipmentTotalField({
+    required this.row,
+    required this.useMiles,
+    required this.readOnly,
+  });
+
+  @override
+  State<_EquipmentTotalField> createState() => _EquipmentTotalFieldState();
+}
+
+class _EquipmentTotalFieldState extends State<_EquipmentTotalField> {
+  @override
+  void initState() {
+    super.initState();
+    widget.row.total.addListener(_handleTotalChanged);
+  }
+
+  @override
+  void didUpdateWidget(covariant _EquipmentTotalField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.row == widget.row) return;
+    oldWidget.row.total.removeListener(_handleTotalChanged);
+    widget.row.total.addListener(_handleTotalChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.row.total.removeListener(_handleTotalChanged);
+    super.dispose();
+  }
+
+  void _handleTotalChanged() {
+    if (!mounted) return;
+    setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final label = widget.useMiles ? '18. Total Miles' : '18. Total Hours';
+    final text = widget.row.total.text.trim();
+    final parsed = double.tryParse(text);
+    final invalidHours =
+        !widget.useMiles && text.isNotEmpty && (parsed == null || parsed < 0);
+    final adjusted = !widget.useMiles &&
+        widget.row.totalHoursManuallyOverridden &&
+        widget.row.calculatedTotalHours > 0;
+    final exceedsCalculated =
+        adjusted && parsed != null && parsed > widget.row.calculatedTotalHours;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        OF297TextField(
+          label: label,
+          controller: widget.row.total,
+          readOnly: widget.readOnly,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          onChanged: widget.useMiles
+              ? null
+              : (_) {
+                  widget.row.markTotalManuallyChanged();
+                  setState(() {});
+                },
+        ),
+        if (invalidHours) ...[
+          const SizedBox(height: 4),
+          Text(
+            'Enter a valid non-negative duration.',
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
+          ),
+        ],
+        if (adjusted) ...[
+          const SizedBox(height: 4),
+          Text(
+            'Adjusted from calculated time: '
+            '${_formatHours(widget.row.calculatedTotalHours)}',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          TextButton(
+            onPressed: widget.readOnly
+                ? null
+                : () {
+                    widget.row.useCalculatedTotal();
+                    setState(() {});
+                  },
+            child: const Text('Use calculated time'),
+          ),
+        ],
+        if (exceedsCalculated) ...[
+          const SizedBox(height: 4),
+          Text(
+            'Warning: total is greater than calculated elapsed time.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+      ],
+    );
+  }
+}
+
 class _DatePickerTextField extends StatelessWidget {
   final String label;
   final TextEditingController controller;
@@ -1485,12 +1726,14 @@ class _MilitaryTimeField extends StatelessWidget {
   final TextEditingController controller;
   final bool readOnly;
   final VoidCallback? onTimeChanged;
+  final String? helperText;
 
   const _MilitaryTimeField({
     required this.label,
     required this.controller,
     required this.readOnly,
     this.onTimeChanged,
+    this.helperText,
   });
 
   @override
@@ -1523,7 +1766,7 @@ class _MilitaryTimeField extends StatelessWidget {
             decoration: InputDecoration(
               labelText: label,
               hintText: 'HHMM',
-              helperText: 'Military time',
+              helperText: helperText ?? 'Military time',
               errorText: errorText,
               counterText: '',
               prefixIcon: const Icon(Icons.schedule_outlined),

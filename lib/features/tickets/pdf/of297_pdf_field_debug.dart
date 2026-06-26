@@ -1,3 +1,4 @@
+// Tickets PDF generation and export support.
 import 'dart:developer' as developer;
 import 'dart:io';
 

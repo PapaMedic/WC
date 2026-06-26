@@ -1,3 +1,4 @@
+// Tickets reusable presentation widget.
 import 'package:flutter/material.dart';
 import 'package:wildland_companion_v2/app/theme/app_colors.dart';
 

@@ -1,3 +1,4 @@
+// Tickets PDF generation and export support.
 import 'dart:typed_data';
 
 import 'package:wildland_companion_v2/features/tickets/models/of297_shift_ticket.dart';

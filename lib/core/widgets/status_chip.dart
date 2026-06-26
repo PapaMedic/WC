@@ -1,3 +1,4 @@
+// Shared UI widget used across app screens.
 import 'package:flutter/material.dart';
 
 class StatusChip extends StatelessWidget {

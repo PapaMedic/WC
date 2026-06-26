@@ -1,3 +1,4 @@
+// Tickets data model and serialization helpers.
 /// Captured OF-297 signature data stored directly with the draft ticket.
 ///
 /// The signature pad exports a PNG and stores it as base64 so the draft ticket

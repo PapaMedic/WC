@@ -1,3 +1,4 @@
+// Application-level routing and shell wiring.
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:wildland_companion_v2/app/theme/app_theme.dart';

@@ -1,3 +1,4 @@
+// Fire Map service layer for external data and caching.
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -28,65 +29,31 @@ class FireMapService {
         _cacheService = cacheService ?? FireMapCacheService();
 
   static const String _incidentLayerUrl =
-      'https://services5.arcgis.com/b7cJ4YYc9GM63RSz/arcgis/rest/services/'
-      'USA_Active_Wildfires___Current_Incidents/FeatureServer/1/query';
-  static const String _incidentFallbackLayerUrl =
-      'https://services9.arcgis.com/RHVPKKiFTONKtxq3/arcgis/rest/services/'
-      'USA_Wildfires_v1/FeatureServer/0/query';
-  static final String _incidentOutFields = [
+      'https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/'
+      'WFIGS_Incident_Locations_Current/FeatureServer/0/query';
+  static const List<String> _incidentFields = [
     'OBJECTID',
-    'ObjectId',
-    'FID',
-    'IrwinID',
-    'IRWINID',
-    'UniqueFireIdentifier',
     'IncidentName',
-    'incidentName',
-    'FireName',
-    'Name',
-    'DailyAcres',
-    'GISAcres',
-    'CalculatedAcres',
-    'Acres',
+    'IncidentSize',
     'PercentContained',
-    'PercentContainment',
-    'ContainmentPercent',
-    'FireDiscoveryDateTime',
-    'DiscoveryDate',
-    'StartDate',
-    'ModifiedOnDateTime',
-    'ModifiedOn',
-    'CurrentDateTime',
-    'CreateDate',
-    'ContainmentDateTime',
-    'ContainmentDate',
-    'ContainedDate',
-    'ControlDateTime',
-    'ControlDate',
-    'ControlledDate',
-    'FFReportApprovedDate',
-    'FinalFireReportApprovedDate',
-    'POOProtectingUnit',
-    'ProtectingUnit',
-    'Jurisdiction',
-    'UnitID',
-    'POOProtectingAgency',
-    'Agency',
     'IncidentTypeCategory',
-    'IncidentTypeKind',
-    'IncidentType',
-    'IncidentStatus',
-    'FireStatus',
-    'FeatureStatus',
-    'ICS209ReportStatus',
+    'FireDiscoveryDateTime',
+    'ModifiedOnDateTime_dt',
+    'UniqueFireIdentifier',
+    'LocalIncidentIdentifier',
+    'IrwinID',
+    'POOState',
+    'POOCounty',
+    'POOCity',
+    'POOJurisdictionalAgency',
+    'FireCause',
+    'FireCauseGeneral',
     'IncidentShortDescription',
-    'StrategicDecisionPublishText',
-    'Remarks',
-    'Comments',
-    'IsActive',
-    'Active',
-    'IsValid',
-  ].join(',');
+    'ActiveFireCandidate',
+    'FireOutDateTime',
+    'ContainmentDateTime',
+  ];
+  static final String _incidentOutFields = _incidentFields.join(',');
 
   final http.Client _client;
   final FireMapCacheService _cacheService;
@@ -103,57 +70,82 @@ class FireMapService {
 
   Future<FireMapResult<List<FireIncident>>> fetchActiveIncidents() async {
     try {
+      // ArcGIS expects outFields as a comma-separated query string, not a JSON
+      // array. Keeping this explicit prevents schema errors from resurfacing.
       final json = await _getJson(_incidentLayerUrl, {
-        'f': 'json',
-        'where': '1=1',
-        'outFields': _incidentOutFields,
+        'where': "IncidentTypeCategory IN ('WF','RX','CX')",
         'returnGeometry': 'true',
         'outSR': '4326',
-        'resultRecordCount': '2000',
+        'f': 'json',
+        'outFields': _incidentOutFields,
       });
-      var incidents = _parseIncidents(json);
-      var cacheJson = json;
-      String? message;
+      final incidents = _parseIncidents(json);
 
-      if (incidents.isEmpty) {
+      if (incidents.isNotEmpty) {
+        await _cacheService.saveIncidents(json);
+      } else {
         _debugLog(
-          'Requested active wildfire layer returned 0 valid incidents. '
-          'Trying current NIFC/WFIGS fallback layer.',
+          'Live ArcGIS response parsed 0 valid incidents. Existing cache was not overwritten.',
         );
-        final fallbackJson = await _getJson(_incidentFallbackLayerUrl, {
-          'f': 'json',
-          'where': '1=1',
-          'outFields': _incidentOutFields,
-          'returnGeometry': 'true',
-          'outSR': '4326',
-          'resultRecordCount': '2000',
-        });
-        final fallbackIncidents = _parseIncidents(fallbackJson);
-        if (fallbackIncidents.isNotEmpty) {
-          incidents = fallbackIncidents;
-          cacheJson = fallbackJson;
-          message =
-              'Primary ArcGIS active fire layer returned no features. Showing current NIFC/WFIGS feed.';
-        }
       }
 
-      await _cacheService.saveIncidents(cacheJson);
       return FireMapResult(
         data: incidents,
         isCached: false,
         lastUpdated: DateTime.now(),
-        message: message,
       );
+    } on FireMapException catch (error) {
+      if (kDebugMode && error.isInvalidOutFields) {
+        try {
+          // Development-only escape hatch for ArcGIS schema drift. Production
+          // avoids broad field queries unless the verified schema works.
+          _debugLog(
+              'ArcGIS outFields schema fallback used: retrying with outFields=*');
+          final json = await _getJson(_incidentLayerUrl, {
+            'where': "IncidentTypeCategory IN ('WF','RX','CX')",
+            'returnGeometry': 'true',
+            'outSR': '4326',
+            'f': 'json',
+            'outFields': '*',
+          });
+          final incidents = _parseIncidents(json);
+
+          if (incidents.isNotEmpty) {
+            await _cacheService.saveIncidents(json);
+          } else {
+            _debugLog(
+              'ArcGIS schema fallback parsed 0 valid incidents. Existing cache was not overwritten.',
+            );
+          }
+
+          return FireMapResult(
+            data: incidents,
+            isCached: false,
+            lastUpdated: DateTime.now(),
+            message: 'ArcGIS schema fallback was used for the live feed.',
+          );
+        } catch (fallbackError) {
+          return _loadCachedAfterFailure(fallbackError);
+        }
+      }
+
+      return _loadCachedAfterFailure(error);
     } catch (error) {
-      final cached = await _cacheService.loadIncidents();
-      if (cached == null) rethrow;
-      return FireMapResult(
-        data: _parseIncidents(cached.json),
-        isCached: true,
-        lastUpdated: cached.cachedAt,
-        message: 'Live incident feed unavailable. Showing cached data. $error',
-      );
+      return _loadCachedAfterFailure(error);
     }
+  }
+
+  Future<FireMapResult<List<FireIncident>>> _loadCachedAfterFailure(
+    Object error,
+  ) async {
+    final cached = await _cacheService.loadIncidents();
+    if (cached == null) throw error;
+    return FireMapResult(
+      data: _parseIncidents(cached.json),
+      isCached: true,
+      lastUpdated: cached.cachedAt,
+      message: 'Live incident feed unavailable. Showing cached data. $error',
+    );
   }
 
   Future<Map<String, dynamic>> _getJson(
@@ -161,18 +153,12 @@ class FireMapService {
     Map<String, String> queryParameters,
   ) async {
     final uri = Uri.parse(baseUrl).replace(queryParameters: queryParameters);
-    _debugLog('ArcGIS request URL: $uri');
+    _debugLog('ArcGIS request URL: ${_redactSensitiveQueryValues(uri)}');
     final response =
         await _client.get(uri).timeout(const Duration(seconds: 18));
     _debugLog('ArcGIS HTTP status: ${response.statusCode}');
 
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw FireMapException(
-        'ArcGIS request failed: ${response.statusCode} ${response.reasonPhrase}',
-      );
-    }
-
-    final Object? decoded;
+    Object? decoded;
     try {
       decoded = jsonDecode(response.body);
     } catch (error) {
@@ -180,6 +166,13 @@ class FireMapService {
         'ArcGIS JSON parse failed. First 500 chars: '
         '${_firstResponseChars(response.body)}',
       );
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        _logArcGisFailure(
+          statusCode: response.statusCode,
+          uri: uri,
+          outFields: queryParameters['outFields'] ?? '',
+        );
+      }
       throw FireMapException('Unable to parse ArcGIS JSON response: $error');
     }
 
@@ -190,10 +183,39 @@ class FireMapService {
       );
       throw const FireMapException('Invalid ArcGIS response.');
     }
+
     final json = decoded.map((key, value) => MapEntry(key.toString(), value));
-    if (json['error'] != null) {
-      throw FireMapException(_formatArcGisError(json['error']));
+    final arcGisError = json['error'];
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      _logArcGisFailure(
+        statusCode: response.statusCode,
+        uri: uri,
+        outFields: queryParameters['outFields'] ?? '',
+        error: arcGisError,
+      );
+      throw FireMapException(
+        'ArcGIS request failed: ${response.statusCode} ${response.reasonPhrase}',
+        code: _arcGisErrorCode(arcGisError),
+        arcGisMessage: _arcGisErrorMessage(arcGisError),
+        details: _arcGisErrorDetails(arcGisError),
+      );
     }
+
+    if (arcGisError != null) {
+      _logArcGisFailure(
+        statusCode: response.statusCode,
+        uri: uri,
+        outFields: queryParameters['outFields'] ?? '',
+        error: arcGisError,
+      );
+      throw FireMapException(
+        _formatArcGisError(arcGisError),
+        code: _arcGisErrorCode(arcGisError),
+        arcGisMessage: _arcGisErrorMessage(arcGisError),
+        details: _arcGisErrorDetails(arcGisError),
+      );
+    }
+
     return json;
   }
 
@@ -223,6 +245,67 @@ class FireMapService {
     return value.length <= 500 ? value : value.substring(0, 500);
   }
 
+  void _logArcGisFailure({
+    required int statusCode,
+    required Uri uri,
+    required String outFields,
+    Object? error,
+  }) {
+    _debugLog('ArcGIS request failed.');
+    _debugLog('ArcGIS HTTP status: $statusCode');
+    _debugLog('ArcGIS final request URI: ${_redactSensitiveQueryValues(uri)}');
+    _debugLog('ArcGIS error code: ${_arcGisErrorCode(error) ?? '-'}');
+    _debugLog('ArcGIS error message: ${_arcGisErrorMessage(error) ?? '-'}');
+    _debugLog('ArcGIS error details: ${_arcGisErrorDetails(error).join('; ')}');
+    _debugLog('ArcGIS outFields: $outFields');
+  }
+
+  Uri _redactSensitiveQueryValues(Uri uri) {
+    if (uri.queryParameters.isEmpty) return uri;
+
+    final redacted = <String, String>{};
+    for (final entry in uri.queryParameters.entries) {
+      final key = entry.key.toLowerCase();
+      redacted[entry.key] =
+          key == 'token' || key == 'api_key' ? '<redacted>' : entry.value;
+    }
+    return uri.replace(queryParameters: redacted);
+  }
+
+  int? _arcGisErrorCode(Object? error) {
+    if (error is! Map) return null;
+    final code = error['code'];
+    if (code is int) return code;
+    if (code is num) return code.toInt();
+    if (code is String) return int.tryParse(code);
+    return null;
+  }
+
+  String? _arcGisErrorMessage(Object? error) {
+    if (error is! Map) return null;
+    return _toLogString(error['message']);
+  }
+
+  List<String> _arcGisErrorDetails(Object? error) {
+    if (error is! Map) return const [];
+    final details = error['details'];
+    if (details is List) {
+      return details
+          .map(_toLogString)
+          .whereType<String>()
+          .where((detail) => detail.isNotEmpty)
+          .toList();
+    }
+    final detail = _toLogString(details);
+    return detail == null || detail.isEmpty ? const [] : [detail];
+  }
+
+  String? _toLogString(Object? value) {
+    if (value == null) return null;
+    final text = value.toString().trim();
+    return text.isEmpty ? null : text;
+  }
+
   String _formatArcGisError(Object? error) {
     if (error is Map) {
       final message = error['message'] ?? 'Unknown ArcGIS error';
@@ -242,8 +325,25 @@ class FireMapService {
 
 class FireMapException implements Exception {
   final String message;
+  final int? code;
+  final String? arcGisMessage;
+  final List<String> details;
 
-  const FireMapException(this.message);
+  const FireMapException(
+    this.message, {
+    this.code,
+    this.arcGisMessage,
+    this.details = const [],
+  });
+
+  bool get isInvalidOutFields {
+    final combined = [
+      message,
+      if (arcGisMessage != null) arcGisMessage!,
+      ...details,
+    ].join(' ').toLowerCase();
+    return combined.contains('outfields') && combined.contains('invalid');
+  }
 
   @override
   String toString() => message;

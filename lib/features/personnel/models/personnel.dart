@@ -1,3 +1,4 @@
+// Personnel data model and serialization helpers.
 class Personnel {
   final String id;
   final String name;

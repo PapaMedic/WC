@@ -1,3 +1,4 @@
+// Tickets reusable presentation widget.
 import 'package:flutter/material.dart';
 
 /// Text field wrapper for OF-297 form inputs.
@@ -7,6 +8,7 @@ class OF297TextField extends StatelessWidget {
   final bool readOnly;
   final int maxLines;
   final TextInputType? keyboardType;
+  final ValueChanged<String>? onChanged;
 
   const OF297TextField({
     super.key,
@@ -15,6 +17,7 @@ class OF297TextField extends StatelessWidget {
     this.readOnly = false,
     this.maxLines = 1,
     this.keyboardType,
+    this.onChanged,
   });
 
   @override
@@ -24,6 +27,7 @@ class OF297TextField extends StatelessWidget {
       readOnly: readOnly,
       maxLines: maxLines,
       keyboardType: keyboardType,
+      onChanged: onChanged,
       decoration: InputDecoration(
         labelText: label,
       ),

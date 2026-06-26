@@ -1,4 +1,6 @@
+// Tickets persistence and repository logic.
 import 'package:wildland_companion_v2/features/tickets/models/of297_shift_ticket.dart';
+import 'package:wildland_companion_v2/features/tickets/models/of297_equipment_time_entry.dart';
 
 /// Finalization rules for OF-297 tickets.
 ///
@@ -35,6 +37,15 @@ class OF297ValidationService {
     if (!_hasEquipmentTimeEntry(ticket)) {
       errors.add('At least one equipment time entry is required.');
     }
+    if (ticket.rateIsHours) {
+      for (var i = 0; i < ticket.equipmentEntries.length; i++) {
+        final entry = ticket.equipmentEntries[i];
+        if (!_hasHourEquipmentContent(entry)) continue;
+        if (entry.totalHours < 0) {
+          errors.add('Equipment row ${i + 1} total hours cannot be negative.');
+        }
+      }
+    }
     if (ticket.contractorSignature == null) {
       errors.add('Contractor/operator signature is required.');
     }
@@ -61,5 +72,13 @@ class OF297ValidationService {
           entry.totalHours > 0 ||
           entry.notes.trim().isNotEmpty;
     });
+  }
+
+  bool _hasHourEquipmentContent(OF297EquipmentTimeEntry entry) {
+    return entry.date != null ||
+        entry.startTime != null ||
+        entry.stopTime != null ||
+        entry.totalHours != 0 ||
+        entry.notes.trim().isNotEmpty;
   }
 }

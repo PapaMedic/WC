@@ -1,3 +1,4 @@
+// Application-level routing and shell wiring.
 import 'package:flutter/material.dart';
 import 'package:wildland_companion_v2/core/widgets/app_shell.dart';
 import 'package:wildland_companion_v2/features/dashboard/presentation/dashboard_page.dart';
@@ -7,6 +8,7 @@ import 'package:wildland_companion_v2/features/incidents/presentation/incidents_
 import 'package:wildland_companion_v2/features/tickets/presentation/tickets_page.dart';
 import 'package:wildland_companion_v2/features/fire_map/pages/fire_map_page.dart';
 import 'package:wildland_companion_v2/features/field_calculator/presentation/field_calculator_page.dart';
+import 'package:wildland_companion_v2/core/navigation/app_destination.dart';
 
 class AppRouter extends StatefulWidget {
   const AppRouter({super.key});
@@ -22,8 +24,13 @@ class AppRouter extends StatefulWidget {
 
 class _AppRouterState extends State<AppRouter> {
   int _currentIndex = 0;
+  late final List<GlobalKey> _pageKeys = List.generate(
+    appDestinations.length,
+    (_) => GlobalKey(),
+  );
 
   void navigateTo(int index) {
+    if (index < 0 || index >= appDestinations.length) return;
     if (_currentIndex != index) {
       setState(() {
         _currentIndex = index;
@@ -34,57 +41,45 @@ class _AppRouterState extends State<AppRouter> {
   @override
   Widget build(BuildContext context) {
     Widget body;
-    String title;
-    String? subtitle;
 
     switch (_currentIndex) {
       case 0:
         body = const DashboardPage();
-        title = 'Dashboard';
-        subtitle = 'Overview & Quick Actions';
         break;
       case 1:
         body = const PersonnelPage();
-        title = 'Personnel';
-        subtitle = 'Crew & Roster Management';
         break;
       case 2:
         body = const ApparatusPage();
-        title = 'Apparatus';
-        subtitle = 'Vehicle & Equipment Tracking';
         break;
       case 3:
         body = const IncidentsPage();
-        title = 'Incidents';
-        subtitle = 'Active Incident Management';
         break;
       case 4:
         body = const TicketsPage();
-        title = 'Tickets / OF-297';
-        subtitle = 'Time & Equipment Reporting';
         break;
       case 5:
         body = const FireMapPage();
-        title = 'Fire Map';
-        subtitle = 'Tactical GIS & Mapping';
         break;
       case 6:
         body = const FieldCalculatorPage();
-        title = 'Field Calculator';
-        subtitle = 'Tactical Utilities & Conversions';
         break;
       default:
         body = const DashboardPage();
-        title = 'Dashboard';
-        subtitle = 'Overview & Quick Actions';
     }
 
+    final destination = appDestinations[_currentIndex];
+
     return AppShell(
-      title: title,
-      subtitle: subtitle,
+      title: destination.label,
+      subtitle: destination.subtitle,
       currentIndex: _currentIndex,
       onNavigate: navigateTo,
-      body: body,
+      constrainBodyWidth: _currentIndex != 5,
+      body: KeyedSubtree(
+        key: _pageKeys[_currentIndex],
+        child: body,
+      ),
     );
   }
 }

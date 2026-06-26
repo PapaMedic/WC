@@ -1,3 +1,4 @@
+// Theme constants and styling helpers for the app.
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
 

@@ -1,3 +1,4 @@
+// Personnel screen UI and user interaction flow.
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 

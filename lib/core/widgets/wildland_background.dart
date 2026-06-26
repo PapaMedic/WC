@@ -1,3 +1,4 @@
+// Shared UI widget used across app screens.
 import 'package:flutter/material.dart';
 
 /// A full-screen background widget using the app background image,

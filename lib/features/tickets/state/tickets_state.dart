@@ -1,3 +1,4 @@
+// Tickets state management for screen workflows.
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 import 'package:wildland_companion_v2/features/tickets/data/of297_repository.dart';
@@ -185,6 +186,7 @@ class TicketsState extends ChangeNotifier {
       globalBlock1Stop: sourceTicket.globalBlock1Stop,
       globalBlock2Start: sourceTicket.globalBlock2Start,
       globalBlock2Stop: sourceTicket.globalBlock2Stop,
+      apparatusSameAsCrewTimes: false,
       equipmentEntries:
           sourceTicket.equipmentEntries.map(_duplicateEquipmentRow).toList(),
       personnelEntries:

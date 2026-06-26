@@ -1,3 +1,4 @@
+// Fire Map screen UI and user interaction flow.
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -78,13 +79,11 @@ class _FireMapPageState extends State<FireMapPage> {
           if (!mounted) return;
           setState(() {
             _incidents = cached.data;
-            _feedStatus = FireMapFeedStatus.cached;
-            _lastUpdated = cached.lastUpdated;
-            _isLoadingIncidents = false;
+            _feedStatus = FireMapFeedStatus.live;
+            _lastUpdated = null;
           });
           _refreshVisibleMarkers();
           _fitIncidentMarkers();
-          return;
         }
       }
 

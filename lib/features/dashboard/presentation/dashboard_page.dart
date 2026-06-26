@@ -1,3 +1,4 @@
+// Dashboard screen UI and user interaction flow.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -57,6 +58,8 @@ class _DashboardPageState extends State<DashboardPage> {
 
   Future<void> _loadDashboardData() async {
     final ticketsState = context.read<TicketsState>();
+    // The dashboard is a summary of selected/active records from several
+    // local repositories, so load them together before updating the UI.
     final apparatus = await _apparatusRepository.getSelectedApparatus();
     final incident = await _incidentRepository.getSelectedIncident();
     final personnel = await _personnelRepository.getAssignedPersonnel();

@@ -1,3 +1,4 @@
+// Tests covering shift ticket time test.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wildland_companion_v2/features/tickets/utils/shift_ticket_time.dart';
 
@@ -31,6 +32,27 @@ void main() {
       expect(
         formatShiftDateRange(shiftDate, '2359', '0001'),
         '05/29/2026-05/30/2026',
+      );
+    });
+  });
+
+  group('calculateShiftDuration', () {
+    test('calculates same-day apparatus duration', () {
+      expect(calculateShiftDuration('0800', '2000'), const Duration(hours: 12));
+      expect(
+        calculateShiftDuration('0730', '1615'),
+        const Duration(hours: 8, minutes: 45),
+      );
+    });
+
+    test('calculates overnight apparatus duration', () {
+      expect(calculateShiftDuration('1800', '0200'), const Duration(hours: 8));
+    });
+
+    test('formats calculated duration as hours and minutes', () {
+      expect(
+        formatDurationAsHoursMinutes(const Duration(hours: 8, minutes: 45)),
+        '8:45',
       );
     });
   });

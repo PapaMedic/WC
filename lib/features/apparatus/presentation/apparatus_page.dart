@@ -1,3 +1,4 @@
+// Apparatus screen UI and user interaction flow.
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 
@@ -36,6 +37,7 @@ class _ApparatusPageState extends State<ApparatusPage> {
   }
 
   Future<void> _addApparatus() async {
+    // Build the model in the dialog and only persist after the user confirms.
     final result = await showDialog<Apparatus>(
       context: context,
       builder: (context) {

@@ -1,3 +1,4 @@
+// Fire Map data model and serialization helpers.
 import 'package:wildland_companion_v2/features/fire_map/models/fire_incident.dart';
 
 bool isResolved(FireIncident incident) {

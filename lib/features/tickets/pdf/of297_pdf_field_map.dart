@@ -1,3 +1,4 @@
+// Tickets PDF generation and export support.
 /// Central mapping between Wildland Companion ticket data and the official
 /// OF-297 2024 PDF template fields.
 ///

@@ -1,3 +1,4 @@
+// Tickets screen UI and user interaction flow.
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';

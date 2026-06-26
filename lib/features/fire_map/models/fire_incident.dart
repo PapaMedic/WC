@@ -1,3 +1,4 @@
+// Fire Map data model and serialization helpers.
 class FireIncident {
   final String id;
   final String? irwinId;
@@ -83,135 +84,87 @@ class FireIncident {
     final geometry = _mapValue(feature['geometry']);
     final x = _toDouble(geometry['x']);
     final y = _toDouble(geometry['y']);
-    final irwinId = _toStringValue(
-      _firstPresent(attributes, const [
-        'IrwinID',
-        'IRWINID',
-        'irwinId',
-        'UniqueFireIdentifier',
-      ]),
-    );
+    final uniqueFireIdentifier =
+        _toStringValue(attributes['UniqueFireIdentifier']);
+    final localIncidentIdentifier =
+        _toStringValue(attributes['LocalIncidentIdentifier']);
+    final irwinId = _toStringValue(attributes['IrwinID']);
     final objectId = _toStringValue(
-      _firstPresent(attributes, const ['OBJECTID', 'ObjectId', 'FID']),
+      attributes['OBJECTID'],
     );
     final name = _toStringValue(
           _firstPresent(attributes, const [
             'IncidentName',
-            'incidentName',
-            'FireName',
-            'Name',
           ]),
         ) ??
         'Unnamed Fire';
 
     return FireIncident(
-      id: irwinId ?? objectId ?? '${name}_${x ?? 0}_${y ?? 0}',
+      id: uniqueFireIdentifier ??
+          localIncidentIdentifier ??
+          objectId ??
+          '${name}_${x ?? 0}_${y ?? 0}',
       irwinId: irwinId,
       name: name,
       latitude: y ?? double.nan,
       longitude: x ?? double.nan,
       acres: _toDouble(
         _firstPresent(attributes, const [
-          'DailyAcres',
-          'GISAcres',
-          'CalculatedAcres',
-          'Acres',
+          'IncidentSize',
         ]),
       ),
       containmentPercent: _toDouble(
         _firstPresent(attributes, const [
           'PercentContained',
-          'PercentContainment',
-          'ContainmentPercent',
         ]),
       ),
       discoveryDate: _toDate(
         _firstPresent(attributes, const [
           'FireDiscoveryDateTime',
-          'DiscoveryDate',
-          'StartDate',
-          'attr_FireDiscoveryDateTime',
         ]),
       ),
       modifiedDate: _toDate(
         _firstPresent(attributes, const [
-          'ModifiedOnDateTime',
-          'ModifiedOn',
-          'CurrentDateTime',
-          'CreateDate',
+          'ModifiedOnDateTime_dt',
         ]),
       ),
       containmentDate: _toDate(
         _firstPresent(attributes, const [
           'ContainmentDateTime',
-          'ContainmentDate',
-          'ContainedDate',
-          'attr_ContainmentDateTime',
         ]),
       ),
       controlDate: _toDate(
         _firstPresent(attributes, const [
-          'ControlDateTime',
-          'ControlDate',
-          'ControlledDate',
-          'attr_ControlDateTime',
+          'FireOutDateTime',
         ]),
       ),
-      finalFireReportApprovedDate: _toDate(
-        _firstPresent(attributes, const [
-          'FFReportApprovedDate',
-          'FinalFireReportApprovedDate',
-          'FinalReportApprovedDate',
-          'attr_FFReportApprovedDate',
-        ]),
-      ),
+      finalFireReportApprovedDate: null,
       jurisdiction: _toStringValue(
         _firstPresent(attributes, const [
-          'POOProtectingUnit',
-          'ProtectingUnit',
-          'Jurisdiction',
-          'UnitID',
-          'attr_POOProtectingUnit',
-          'attr_POOJurisdictionalAgency',
+          'POOJurisdictionalAgency',
+          'POOCounty',
+          'POOState',
         ]),
       ),
       agency: _toStringValue(
         _firstPresent(attributes, const [
-          'POOProtectingAgency',
-          'Agency',
-          'InitialResponseAcres',
-          'attr_POOProtectingAgency',
-          'attr_FFReportApprovedByUnit',
+          'POOJurisdictionalAgency',
         ]),
       ),
       incidentType: _toStringValue(
         _firstPresent(attributes, const [
           'IncidentTypeCategory',
-          'IncidentTypeKind',
-          'IncidentType',
-          'attr_IncidentTypeCategory',
-          'poly_FeatureCategory',
         ]),
       ),
       status: _toStringValue(
         _firstPresent(attributes, const [
-          'IncidentStatus',
-          'FireStatus',
-          'FeatureStatus',
-          'attr_FireOutDateTime',
-          'poly_FeatureStatus',
+          'ActiveFireCandidate',
+          'FireOutDateTime',
         ]),
       ),
       importantUpdates: _toStringValue(
         _firstPresent(attributes, const [
           'IncidentShortDescription',
-          'StrategicDecisionPublishText',
-          'ICS209ReportStatus',
-          'Remarks',
-          'Comments',
-          'attr_IncidentShortDescription',
-          'attr_StrategicDecisionPublishText',
-          'attr_FireBehaviorGeneral',
         ]),
       ),
       rawProperties: attributes,
@@ -243,7 +196,7 @@ Object? _firstPresent(Map<String, dynamic> values, List<String> keys) {
 
 double? _toDouble(Object? value) {
   if (value is num) return value.toDouble();
-  if (value is String) return double.tryParse(value);
+  if (value is String) return double.tryParse(value.trim());
   return null;
 }
 
@@ -262,6 +215,11 @@ DateTime? _toDate(Object? value) {
   if (value is double) {
     return DateTime.fromMillisecondsSinceEpoch(value.toInt());
   }
-  if (value is String) return DateTime.tryParse(value);
+  if (value is String) {
+    final trimmed = value.trim();
+    final millis = int.tryParse(trimmed);
+    if (millis != null) return DateTime.fromMillisecondsSinceEpoch(millis);
+    return DateTime.tryParse(trimmed);
+  }
   return null;
 }

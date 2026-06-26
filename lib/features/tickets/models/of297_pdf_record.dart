@@ -1,3 +1,4 @@
+// Tickets data model and serialization helpers.
 /// Persistent metadata for a finalized OF-297 PDF export.
 ///
 /// The generated PDF file lives on disk. This record lets the app remember

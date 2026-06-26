@@ -1,3 +1,4 @@
+// Shared UI widget used across app screens.
 import 'package:flutter/material.dart';
 import 'package:wildland_companion_v2/app/theme/app_spacing.dart';
 import 'package:wildland_companion_v2/app/theme/app_colors.dart';
@@ -51,11 +52,11 @@ class ModulePlaceholderPage extends StatelessWidget {
                       const SizedBox(height: AppSpacing.sm),
                       Text(
                         title,
-                        style: Theme.of(context).textTheme.headlineSmall
-                            ?.copyWith(
-                              color: AppColors.textPrimary,
-                              fontWeight: FontWeight.bold,
-                            ),
+                        style:
+                            Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                  color: AppColors.textPrimary,
+                                  fontWeight: FontWeight.bold,
+                                ),
                       ),
                       const SizedBox(height: AppSpacing.sm),
                       Text(

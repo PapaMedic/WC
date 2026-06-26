@@ -1,3 +1,4 @@
+// Tickets PDF generation and export support.
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:math' as math;

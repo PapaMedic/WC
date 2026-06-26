@@ -1,3 +1,4 @@
+// Apparatus persistence and repository logic.
 import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
@@ -53,9 +54,8 @@ class ApparatusRepository {
   Future<void> deleteApparatus(String id) async {
     final apparatusList = await getAllApparatus();
 
-    final updatedList = apparatusList
-        .where((apparatus) => apparatus.id != id)
-        .toList();
+    final updatedList =
+        apparatusList.where((apparatus) => apparatus.id != id).toList();
 
     await saveAllApparatus(updatedList);
   }

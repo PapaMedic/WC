@@ -1,3 +1,4 @@
+// Tickets data model and serialization helpers.
 /// One personnel/operator time row on an OF-297 ticket.
 ///
 /// This model is separate from the app's Personnel roster because the ticket is

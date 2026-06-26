@@ -1,3 +1,4 @@
+// Incidents data model and serialization helpers.
 class Incident {
   static const statusActive = 'active';
   static const statusClosed = 'closed';

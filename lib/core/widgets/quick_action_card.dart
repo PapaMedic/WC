@@ -1,3 +1,4 @@
+// Shared UI widget used across app screens.
 import 'package:flutter/material.dart';
 import 'package:wildland_companion_v2/app/theme/app_colors.dart';
 import 'package:wildland_companion_v2/app/theme/app_spacing.dart';

@@ -1,3 +1,4 @@
+// Field Calculator screen UI and user interaction flow.
 import 'package:flutter/material.dart';
 import 'package:wildland_companion_v2/core/widgets/module_placeholder_page.dart';
 

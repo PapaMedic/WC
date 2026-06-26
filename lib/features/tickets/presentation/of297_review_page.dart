@@ -1,17 +1,17 @@
+// Tickets screen UI and user interaction flow.
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:wildland_companion_v2/app/theme/app_spacing.dart';
-import 'package:wildland_companion_v2/core/widgets/tactical_card.dart';
 import 'package:wildland_companion_v2/core/widgets/wildland_background.dart';
 import 'package:wildland_companion_v2/features/tickets/data/of297_validation_service.dart';
 import 'package:wildland_companion_v2/features/tickets/models/of297_pdf_record.dart';
 import 'package:wildland_companion_v2/features/tickets/models/of297_shift_ticket.dart';
+import 'package:wildland_companion_v2/features/tickets/models/of297_signature.dart';
 import 'package:wildland_companion_v2/features/tickets/models/shift_ticket_export_format.dart';
-import 'package:wildland_companion_v2/features/tickets/pdf/of297_export_document.dart';
 import 'package:wildland_companion_v2/features/tickets/pdf/of297_pdf_service.dart';
 import 'package:wildland_companion_v2/features/tickets/pdf/pdf_byte_utils.dart';
 import 'package:wildland_companion_v2/features/tickets/pdf/shift_ticket_pdf_exporter.dart';
@@ -20,7 +20,6 @@ import 'package:wildland_companion_v2/features/tickets/presentation/widgets/of29
 import 'package:wildland_companion_v2/features/tickets/presentation/widgets/of297_status_pill.dart';
 import 'package:wildland_companion_v2/features/tickets/presentation/widgets/shift_ticket_pdf_preview_screen.dart';
 import 'package:wildland_companion_v2/features/tickets/state/tickets_state.dart';
-import 'package:wildland_companion_v2/features/tickets/utils/shift_ticket_time.dart';
 
 /// Read-only review, signature capture, and finalization for OF-297 tickets.
 ///
@@ -45,8 +44,25 @@ class OF297ReviewPage extends StatefulWidget {
 class _OF297ReviewPageState extends State<OF297ReviewPage> {
   final ShiftTicketPdfExporter _pdfExporter = ShiftTicketPdfExporter();
   final Of297PdfService _pdfService = Of297PdfService();
+  final PdfViewerController _inlinePdfController = PdfViewerController();
+  final ScrollController _scrollController = ScrollController();
   bool _isGeneratingPdf = false;
   bool _documentReviewed = false;
+  String? _previewTicketKey;
+  bool _isGeneratingOf297Preview = false;
+  bool _isGeneratingCtrPreview = false;
+  String? _of297PreviewError;
+  String? _ctrPreviewError;
+  final List<ShiftTicketPdfPreviewDocument> _previewDocuments = [];
+  String? _selectedPreviewDocumentId;
+  final Map<String, int> _previewPageByDocumentId = {};
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    _inlinePdfController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -65,6 +81,7 @@ class _OF297ReviewPageState extends State<OF297ReviewPage> {
 
         return WildlandBackground(
           child: Scaffold(
+            resizeToAvoidBottomInset: true,
             backgroundColor: Colors.transparent,
             appBar: AppBar(
               title: const Text('Review Shift Ticket'),
@@ -77,345 +94,346 @@ class _OF297ReviewPageState extends State<OF297ReviewPage> {
                 ),
               ],
             ),
-            body: ListView(
-              padding: const EdgeInsets.all(AppSpacing.lg),
-              children: [
-                TacticalCard(
-                  title: 'Status',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      OF297StatusPill(isFinalized: ticket.isFinalized),
-                      const SizedBox(height: AppSpacing.sm),
-                      Text(
-                        ticket.isFinalized
-                            ? 'This ticket is finalized and locked.'
-                            : 'Review the draft, capture signatures, then finalize.',
+            body: _buildReviewBody(context, ticketsState, ticket),
+            bottomNavigationBar: _ReviewActionBar(
+              ticket: ticket,
+              isGeneratingPdf: _isGeneratingPdf,
+              onEdit: ticket.isFinalized
+                  ? null
+                  : () => _editTicket(context, ticket),
+              onSaveDraft: ticket.isFinalized
+                  ? null
+                  : () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Draft is saved.')),
+                      );
+                    },
+              onExportOf297: !ticket.isFinalized || _isGeneratingPdf
+                  ? null
+                  : () => _generateAndSavePdf(
+                        context,
+                        ticket,
+                        ShiftTicketExportFormat.of297,
                       ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                TacticalCard(
-                  title: 'Shift Ticket Export',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'OF-297 is the primary ticket. CTR is available as a legacy crew time report output from the same finalized data.',
+              onExportCtr: !ticket.isFinalized || _isGeneratingPdf
+                  ? null
+                  : () => _generateAndSavePdf(
+                        context,
+                        ticket,
+                        ShiftTicketExportFormat.ctr,
                       ),
-                      const SizedBox(height: AppSpacing.md),
-                      Wrap(
-                        spacing: AppSpacing.md,
-                        runSpacing: AppSpacing.sm,
-                        children: [
-                          FilledButton.icon(
-                            onPressed: _isGeneratingPdf
-                                ? null
-                                : () => _showPdfPreview(
-                                      context,
-                                      ticket,
-                                      ShiftTicketExportFormat.of297,
-                                    ),
-                            icon: const Icon(Icons.preview_outlined),
-                            label: const Text('Preview OF-297'),
-                          ),
-                          if (ticket.isFinalized)
-                            FilledButton.icon(
-                              onPressed: _isGeneratingPdf
-                                  ? null
-                                  : () => _generateAndSavePdf(
-                                        context,
-                                        ticket,
-                                        ShiftTicketExportFormat.of297,
-                                      ),
-                              icon: _isGeneratingPdf
-                                  ? const SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : const Icon(Icons.save_alt_outlined),
-                              label: Text(
-                                _isGeneratingPdf
-                                    ? 'Generating PDF...'
-                                    : 'Export OF-297',
-                              ),
-                            )
-                          else
-                            OutlinedButton.icon(
-                              onPressed: () => _editTicket(context, ticket),
-                              icon: const Icon(Icons.edit_outlined),
-                              label: const Text('Edit'),
-                            ),
-                          OutlinedButton.icon(
-                            onPressed: _isGeneratingPdf
-                                ? null
-                                : () => _showPdfPreview(
-                                      context,
-                                      ticket,
-                                      ShiftTicketExportFormat.ctr,
-                                    ),
-                            icon: const Icon(Icons.preview_outlined),
-                            label: const Text('Preview CTR'),
-                          ),
-                          if (ticket.isFinalized)
-                            OutlinedButton.icon(
-                              onPressed: _isGeneratingPdf
-                                  ? null
-                                  : () => _generateAndSavePdf(
-                                        context,
-                                        ticket,
-                                        ShiftTicketExportFormat.ctr,
-                                      ),
-                              icon: const Icon(Icons.save_alt_outlined),
-                              label: const Text('Export CTR'),
-                            ),
-                        ],
-                      ),
-                      if (!ticket.isFinalized && !_documentReviewed) ...[
-                        const SizedBox(height: AppSpacing.sm),
-                        const Text(
-                          'Review the OF-297 document before collecting signatures.',
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                TacticalCard(
-                  title: 'CTR Details',
-                  child: _ReviewLine(
-                    label: 'Office Responsible For Fire',
-                    value: ticket.ctrOfficeResponsibleForFire,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                TacticalCard(
-                  title: 'Generated Documents',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: _exportFileNames(ticket)
-                        .map((fileName) => Text('- $fileName'))
-                        .toList(),
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                TacticalCard(
-                  title: 'Incident / Agreement',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _ReviewLine(
-                        label: 'Incident',
-                        value: ticket.incidentName.isEmpty
-                            ? widget.incidentName
-                            : ticket.incidentName,
-                      ),
-                      _ReviewLine(
-                        label: 'Incident ID',
-                        value: widget.incidentId,
-                      ),
-                      _ReviewLine(
-                        label: 'Incident #',
-                        value: ticket.incidentNumber,
-                      ),
-                      _ReviewLine(
-                        label: 'Agreement #',
-                        value: ticket.agreementNumber,
-                      ),
-                      _ReviewLine(
-                        label: 'Resource Order',
-                        value: ticket.resourceOrderNumber,
-                      ),
-                      _ReviewLine(
-                        label: 'Financial Code',
-                        value: ticket.financialCode,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                TacticalCard(
-                  title: 'Contractor',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _ReviewLine(
-                        label: 'Contractor/Agency',
-                        value: ticket.contractorName,
-                      ),
-                      _ReviewLine(
-                        label: 'Contractor Representative',
-                        value: ticket.contractorRepresentativeName,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                TacticalCard(
-                  title: 'Equipment',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _ReviewLine(
-                        label: 'Make/Model',
-                        value: ticket.equipmentMakeModel,
-                      ),
-                      _ReviewLine(
-                        label: 'Type',
-                        value: ticket.equipmentType,
-                      ),
-                      _ReviewLine(
-                        label: 'Serial/VIN',
-                        value: ticket.serialVinNumber,
-                      ),
-                      _ReviewLine(
-                        label: 'License/ID',
-                        value: ticket.equipmentId,
-                      ),
-                      _ReviewLine(
-                        label: 'Transport Retained',
-                        value: ticket.transportRetained ? 'Yes' : 'No',
-                      ),
-                      _ReviewLine(
-                        label: 'Mobilization',
-                        value: ticket.isMobilization == null
-                            ? '-'
-                            : ticket.isMobilization!
-                                ? 'Mobilization'
-                                : 'Demobilization',
-                      ),
-                      _ReviewLine(
-                        label: 'Rate Basis',
-                        value: ticket.rateIsMiles
-                            ? 'Miles'
-                            : ticket.rateIsHours
-                                ? 'Hours'
-                                : '-',
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                TacticalCard(
-                  title: 'Equipment Time Entries',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: ticket.equipmentEntries.isEmpty
-                        ? [const Text('No equipment rows entered.')]
-                        : ticket.equipmentEntries.asMap().entries.map((item) {
-                            final entry = item.value;
-                            final start = ticket.rateIsMiles
-                                ? _formatNullableNumber(entry.mileageStart)
-                                : _formatTime(entry.startTime);
-                            final stop = ticket.rateIsMiles
-                                ? _formatNullableNumber(entry.mileageEnd)
-                                : _formatTime(entry.stopTime);
-                            final total = ticket.rateIsMiles
-                                ? _formatNumber(entry.totalMiles)
-                                : _formatNumber(entry.totalHours);
-                            final totalLabel =
-                                ticket.rateIsMiles ? 'Total Miles' : 'Total';
-                            return _ReviewLine(
-                              label: 'Row ${item.key + 1}',
-                              value:
-                                  '${_formatDateForTicket(ticket, entry.date)} '
-                                  '$start-$stop '
-                                  '$totalLabel: $total '
-                                  'Qty: ${_formatNumber(entry.specialRateQuantity)} '
-                                  'Type: ${entry.rateType} Notes: ${entry.notes}',
-                            );
-                          }).toList(),
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                TacticalCard(
-                  title: 'Personnel Time Entries',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: ticket.personnelEntries.isEmpty
-                        ? [const Text('No personnel rows entered.')]
-                        : ticket.personnelEntries.asMap().entries.map((item) {
-                            final entry = item.value;
-                            return _ReviewLine(
-                              label: 'Row ${item.key + 1}',
-                              value:
-                                  '${_formatDateForTicket(ticket, entry.date)} '
-                                  '${entry.name} ${entry.position} '
-                                  '24/25: ${_formatTime(entry.guaranteeStartTime)}-${_formatTime(entry.guaranteeStopTime)} '
-                                  '26/27: ${_formatTime(entry.startTime)}-${_formatTime(entry.stopTime)} '
-                                  'Total: ${_formatNumber(entry.totalHours)} Notes: ${entry.notes}',
-                            );
-                          }).toList(),
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                TacticalCard(
-                  title: 'Remarks',
-                  child:
-                      _ReviewLine(label: '30. Remarks', value: ticket.remarks),
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                TacticalCard(
-                  title: 'Signatures',
-                  child: Column(
-                    children: [
-                      OF297SignatureBox(
-                        title: 'Contractor/Operator Signature',
-                        signature: ticket.contractorSignature,
-                        readOnly: ticket.isFinalized || !_documentReviewed,
-                        onSignatureChanged: (signature) {
-                          ticketsState.updateContractorSignature(
-                            ticket.id,
-                            signature,
-                          );
-                        },
-                        onSignatureCleared: () {
-                          ticketsState.clearContractorSignature(ticket.id);
-                        },
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                      OF297SignatureBox(
-                        title: 'Incident Supervisor Signature',
-                        signature: ticket.supervisorSignature,
-                        readOnly: ticket.isFinalized || !_documentReviewed,
-                        requestSignerTitle: true,
-                        onSignatureChanged: (signature) {
-                          ticketsState.updateSupervisorSignature(
-                            ticket.id,
-                            signature,
-                          );
-                        },
-                        onSignatureCleared: () {
-                          ticketsState.clearSupervisorSignature(ticket.id);
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-                if (!ticket.isFinalized) ...[
-                  const SizedBox(height: AppSpacing.lg),
-                  FilledButton.icon(
-                    onPressed: () => _finalizeTicket(context, ticket.id),
-                    icon: const Icon(Icons.lock_outline),
-                    label: const Text('Finalize Ticket'),
-                  ),
-                ] else ...[
-                  const SizedBox(height: AppSpacing.lg),
-                  OutlinedButton.icon(
-                    onPressed: () => _duplicateTicket(context, ticket),
-                    icon: const Icon(Icons.copy_outlined),
-                    label: const Text('Duplicate Ticket'),
-                  ),
-                ],
-              ],
+              onFinalize: ticket.isFinalized
+                  ? null
+                  : () => _finalizeTicket(context, ticket.id),
+              onDuplicate: ticket.isFinalized
+                  ? () => _duplicateTicket(context, ticket)
+                  : null,
             ),
           ),
         );
       },
+    );
+  }
+
+  Widget _buildReviewBody(
+    BuildContext context,
+    TicketsState ticketsState,
+    OF297ShiftTicket ticket,
+  ) {
+    _ensurePreviewDocuments(ticket);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final wide = constraints.maxWidth >= 900;
+        final selectedDocument = _selectedPreviewDocument;
+        final contentMaxWidth = wide ? 860.0 : double.infinity;
+
+        return SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              _PreviewDocumentSelector(
+                documents: _previewDocuments,
+                selectedDocumentId: _selectedPreviewDocumentId,
+                ctrError: _ctrPreviewError,
+                isGeneratingCtr: _isGeneratingCtrPreview,
+                onSelected: (document) {
+                  setState(() {
+                    _selectedPreviewDocumentId = document.id;
+                  });
+                },
+                onRetryCtr: () => _generateCtrPreview(ticket),
+              ),
+              Expanded(
+                child: CustomScrollView(
+                  key: const PageStorageKey<String>('of297-review-scroll'),
+                  controller: _scrollController,
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  slivers: [
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.md,
+                        AppSpacing.md,
+                        AppSpacing.md,
+                        AppSpacing.xl,
+                      ),
+                      sliver: SliverList(
+                        delegate: SliverChildListDelegate.fixed([
+                          Center(
+                            child: ConstrainedBox(
+                              constraints:
+                                  BoxConstraints(maxWidth: contentMaxWidth),
+                              child: AspectRatio(
+                                aspectRatio: 0.78,
+                                child: _InlinePdfPreview(
+                                  document: selectedDocument,
+                                  isLoading: _isSelectedDocumentLoading,
+                                  errorText: _selectedPreviewErrorText,
+                                  controller: _inlinePdfController,
+                                  currentPage: selectedDocument == null
+                                      ? 1
+                                      : _previewPageByDocumentId[
+                                              selectedDocument.id] ??
+                                          1,
+                                  onRetry: () => _retrySelectedPreview(ticket),
+                                  onPageChanged: (page) {
+                                    final document = _selectedPreviewDocument;
+                                    if (document == null) return;
+                                    _previewPageByDocumentId[document.id] =
+                                        page;
+                                  },
+                                  onOpenFullScreen: selectedDocument == null
+                                      ? null
+                                      : () => _openSelectedPreviewFullScreen(
+                                            context,
+                                          ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.lg),
+                          Center(
+                            child: ConstrainedBox(
+                              constraints:
+                                  BoxConstraints(maxWidth: contentMaxWidth),
+                              child: _SignaturePanel(
+                                ticket: ticket,
+                                documentReviewed: _documentReviewed,
+                                onContractorSignatureChanged: (signature) {
+                                  ticketsState.updateContractorSignature(
+                                    ticket.id,
+                                    signature,
+                                  );
+                                },
+                                onContractorSignatureCleared: () {
+                                  ticketsState.clearContractorSignature(
+                                    ticket.id,
+                                  );
+                                },
+                                onSupervisorSignatureChanged: (signature) {
+                                  ticketsState.updateSupervisorSignature(
+                                    ticket.id,
+                                    signature,
+                                  );
+                                },
+                                onSupervisorSignatureCleared: () {
+                                  ticketsState.clearSupervisorSignature(
+                                    ticket.id,
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                        ]),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  ShiftTicketPdfPreviewDocument? get _selectedPreviewDocument {
+    if (_previewDocuments.isEmpty) return null;
+    final selectedId = _selectedPreviewDocumentId;
+    if (selectedId != null) {
+      for (final document in _previewDocuments) {
+        if (document.id == selectedId) return document;
+      }
+    }
+    return _previewDocuments.first;
+  }
+
+  bool get _isSelectedDocumentLoading {
+    final selected = _selectedPreviewDocument;
+    if (selected == null) {
+      return _isGeneratingOf297Preview || _isGeneratingCtrPreview;
+    }
+    return switch (selected.type) {
+      ShiftTicketExportFormat.of297 => _isGeneratingOf297Preview,
+      ShiftTicketExportFormat.ctr => _isGeneratingCtrPreview,
+    };
+  }
+
+  String? get _selectedPreviewErrorText {
+    final selected = _selectedPreviewDocument;
+    if (selected == null) return _of297PreviewError ?? _ctrPreviewError;
+    return switch (selected.type) {
+      ShiftTicketExportFormat.of297 => _of297PreviewError,
+      ShiftTicketExportFormat.ctr => _ctrPreviewError,
+    };
+  }
+
+  void _ensurePreviewDocuments(OF297ShiftTicket ticket) {
+    final key = '${ticket.id}:${ticket.updatedAt.microsecondsSinceEpoch}:'
+        '${ticket.contractorSignature?.signedAt.microsecondsSinceEpoch}:'
+        '${ticket.supervisorSignature?.signedAt.microsecondsSinceEpoch}';
+    if (_previewTicketKey == key) return;
+
+    _previewTicketKey = key;
+    _of297PreviewError = null;
+    _ctrPreviewError = null;
+    _previewDocuments.clear();
+    _selectedPreviewDocumentId = null;
+    _previewPageByDocumentId.clear();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _previewTicketKey != key) return;
+      _generateOf297Preview(ticket);
+      _generateCtrPreview(ticket);
+    });
+  }
+
+  Future<void> _generateOf297Preview(
+    OF297ShiftTicket ticket,
+  ) async {
+    if (mounted) {
+      setState(() {
+        _isGeneratingOf297Preview = true;
+        _of297PreviewError = null;
+      });
+    }
+
+    try {
+      final generatedPdfs = await _pdfExporter.generatePreviewPdfs(
+        ticket,
+        format: ShiftTicketExportFormat.of297,
+      );
+      final documents = await _writePreviewPdfsToTempFiles(
+        generatedPdfs,
+        ticket,
+        ShiftTicketExportFormat.of297,
+      );
+      final labeled = _labelPreviewDocuments(documents);
+      if (!mounted) return;
+      setState(() {
+        _previewDocuments.removeWhere(
+          (document) => document.type == ShiftTicketExportFormat.of297,
+        );
+        _previewDocuments.insertAll(0, labeled);
+        _selectedPreviewDocumentId ??=
+            labeled.isEmpty ? null : labeled.first.id;
+        _isGeneratingOf297Preview = false;
+      });
+      if (!ticket.isFinalized && !_documentReviewed) {
+        setState(() => _documentReviewed = true);
+      }
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _of297PreviewError = 'Unable to generate OF-297 preview: $error';
+        _isGeneratingOf297Preview = false;
+      });
+    }
+  }
+
+  Future<void> _generateCtrPreview(OF297ShiftTicket ticket) async {
+    if (mounted) {
+      setState(() {
+        _isGeneratingCtrPreview = true;
+        _ctrPreviewError = null;
+      });
+    }
+
+    try {
+      final generatedPdfs = await _pdfExporter.generatePreviewPdfs(
+        ticket,
+        format: ShiftTicketExportFormat.ctr,
+      );
+      final documents = await _writePreviewPdfsToTempFiles(
+        generatedPdfs,
+        ticket,
+        ShiftTicketExportFormat.ctr,
+      );
+      final labeled = _labelPreviewDocuments(documents);
+      if (!mounted) return;
+      setState(() {
+        _previewDocuments.removeWhere(
+          (document) => document.type == ShiftTicketExportFormat.ctr,
+        );
+        _previewDocuments.addAll(labeled);
+        _isGeneratingCtrPreview = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _ctrPreviewError = 'Unable to generate CTR preview: $error';
+        _isGeneratingCtrPreview = false;
+      });
+    }
+  }
+
+  List<ShiftTicketPdfPreviewDocument> _labelPreviewDocuments(
+    List<ShiftTicketPdfPreviewDocument> documents,
+  ) {
+    final of297Count = documents
+        .where((document) => document.type == ShiftTicketExportFormat.of297)
+        .length;
+    return documents.map((document) {
+      final displayName = switch (document.type) {
+        ShiftTicketExportFormat.of297 =>
+          of297Count == 1 ? 'OF-297' : 'OF-297 ${document.documentIndex + 1}',
+        ShiftTicketExportFormat.ctr => 'CTR',
+      };
+      return ShiftTicketPdfPreviewDocument(
+        id: document.id,
+        displayName: displayName,
+        type: document.type,
+        documentIndex: document.documentIndex,
+        fileName: document.fileName,
+        pdfPath: document.pdfPath,
+      );
+    }).toList();
+  }
+
+  void _retrySelectedPreview(OF297ShiftTicket ticket) {
+    final selected = _selectedPreviewDocument;
+    if (selected?.type == ShiftTicketExportFormat.ctr) {
+      _generateCtrPreview(ticket);
+    } else {
+      _generateOf297Preview(ticket);
+    }
+  }
+
+  Future<void> _openSelectedPreviewFullScreen(BuildContext context) async {
+    final selected = _selectedPreviewDocument;
+    if (selected == null) return;
+    final initialPage = _previewPageByDocumentId[selected.id] ?? 1;
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (context) => ShiftTicketPdfPreviewScreen(
+          title: selected.displayName,
+          documents: [selected],
+          initialPreviewIndex: 0,
+          initialPage: initialPage,
+        ),
+      ),
     );
   }
 
@@ -628,65 +646,6 @@ class _OF297ReviewPageState extends State<OF297ReviewPage> {
     );
   }
 
-  Future<void> _showPdfPreview(
-    BuildContext context,
-    OF297ShiftTicket ticket,
-    ShiftTicketExportFormat format,
-  ) async {
-    setState(() {
-      _isGeneratingPdf = true;
-    });
-
-    try {
-      final generatedPdfs = await _pdfExporter.generatePreviewPdfs(
-        ticket,
-        format: format,
-      );
-      if (generatedPdfs.isEmpty) return;
-      final previewDocuments = await _writePreviewPdfsToTempFiles(
-        generatedPdfs,
-        ticket,
-        format,
-      );
-      if (!context.mounted) return;
-
-      final warnings = _warningsFor(generatedPdfs);
-      final continued = await Navigator.of(context).push<bool>(
-        MaterialPageRoute(
-          fullscreenDialog: true,
-          builder: (context) => ShiftTicketPdfPreviewScreen(
-            title: 'Review ${format.label} Document',
-            documents: previewDocuments,
-            warnings: warnings,
-            canContinueToSignatures:
-                !ticket.isFinalized && format == ShiftTicketExportFormat.of297,
-            initialPreviewIndex: 0,
-          ),
-        ),
-      );
-
-      if (!ticket.isFinalized &&
-          format == ShiftTicketExportFormat.of297 &&
-          continued == true &&
-          mounted) {
-        setState(() {
-          _documentReviewed = true;
-        });
-      }
-    } catch (error) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Unable to preview document: $error')),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isGeneratingPdf = false;
-        });
-      }
-    }
-  }
-
   Future<List<ShiftTicketPdfPreviewDocument>> _writePreviewPdfsToTempFiles(
     List<ShiftTicketGeneratedPdf> generatedPdfs,
     OF297ShiftTicket ticket,
@@ -738,6 +697,12 @@ class _OF297ReviewPageState extends State<OF297ReviewPage> {
 
       documents.add(
         ShiftTicketPdfPreviewDocument(
+          id: '${format.name}-$i',
+          displayName: format == ShiftTicketExportFormat.of297
+              ? 'OF-297 ${i + 1}'
+              : 'CTR',
+          type: format,
+          documentIndex: i,
           fileName: generatedPdf.fileName,
           pdfPath: file.path,
         ),
@@ -765,74 +730,6 @@ class _OF297ReviewPageState extends State<OF297ReviewPage> {
     );
   }
 
-  String _formatDateOnly(DateTime? value) {
-    if (value == null) return '-';
-    return DateFormat('MMM d, yyyy').format(value);
-  }
-
-  String _formatDateForTicket(OF297ShiftTicket ticket, DateTime? rowDate) {
-    final shiftDate = rowDate ?? ticket.globalShiftDate;
-    if (shiftDate == null) return '-';
-
-    if (shiftTimeRangeIsOvernight(
-      ticket.globalBlock2Start,
-      ticket.globalBlock2Stop,
-    )) {
-      return formatShiftDateRange(
-        shiftDate,
-        ticket.globalBlock2Start,
-        ticket.globalBlock2Stop,
-      );
-    }
-
-    if (ticket.globalBlock1Start.isNotEmpty &&
-        ticket.globalBlock1Stop.isNotEmpty) {
-      return formatShiftDateRange(
-        shiftDate,
-        ticket.globalBlock1Start,
-        ticket.globalBlock1Stop,
-      );
-    }
-
-    if (ticket.globalBlock2Start.isNotEmpty &&
-        ticket.globalBlock2Stop.isNotEmpty) {
-      return formatShiftDateRange(
-        shiftDate,
-        ticket.globalBlock2Start,
-        ticket.globalBlock2Stop,
-      );
-    }
-
-    return _formatDateOnly(rowDate);
-  }
-
-  String _formatTime(DateTime? value) {
-    if (value == null) return '-';
-    return DateFormat('HHmm').format(value);
-  }
-
-  String _formatNumber(double value) {
-    if (value == 0) return '-';
-    return value.toStringAsFixed(value.truncateToDouble() == value ? 0 : 2);
-  }
-
-  String _formatNullableNumber(double? value) {
-    if (value == null || value == 0) return '-';
-    return value.toStringAsFixed(value.truncateToDouble() == value ? 0 : 2);
-  }
-
-  List<String> _exportFileNames(OF297ShiftTicket ticket) {
-    return [
-      ...buildOf297ExportDocuments(ticket).map(
-        (document) => _displayFileName(document.fileName),
-      ),
-      _displayFileName(
-        'CTR_${_sanitizeFileName(ticket.incidentName)}_'
-        '${DateFormat('yyyy-MM-dd').format(ticket.globalShiftDate ?? ticket.shiftStart ?? ticket.createdAt)}.pdf',
-      ),
-    ];
-  }
-
   List<String> _warningsFor(List<ShiftTicketGeneratedPdf> generatedPdfs) {
     return generatedPdfs
         .expand((pdf) => pdf.warnings)
@@ -851,31 +748,392 @@ class _OF297ReviewPageState extends State<OF297ReviewPage> {
   String _ensurePdfExtension(String fileName) {
     return fileName.toLowerCase().endsWith('.pdf') ? fileName : '$fileName.pdf';
   }
-
-  String _displayFileName(String fileName) {
-    final extension = fileName.toLowerCase().endsWith('.pdf') ? '.pdf' : '';
-    final baseName = extension.isEmpty
-        ? fileName
-        : fileName.substring(0, fileName.length - extension.length);
-    if (baseName.length <= 34) return '$baseName$extension';
-    return '${baseName.substring(0, 31)}...$extension';
-  }
 }
 
-class _ReviewLine extends StatelessWidget {
-  final String label;
-  final String value;
+class _InlinePdfPreview extends StatelessWidget {
+  final ShiftTicketPdfPreviewDocument? document;
+  final bool isLoading;
+  final String? errorText;
+  final PdfViewerController controller;
+  final int currentPage;
+  final VoidCallback onRetry;
+  final ValueChanged<int> onPageChanged;
+  final VoidCallback? onOpenFullScreen;
 
-  const _ReviewLine({
-    required this.label,
-    required this.value,
+  const _InlinePdfPreview({
+    required this.document,
+    required this.isLoading,
+    required this.errorText,
+    required this.controller,
+    required this.currentPage,
+    required this.onRetry,
+    required this.onPageChanged,
+    required this.onOpenFullScreen,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Text('$label: ${value.isEmpty ? '-' : value}'),
+    final document = this.document;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Semantics(
+      button: document != null,
+      label: document == null
+          ? 'PDF preview loading'
+          : 'Open selected PDF full screen',
+      child: Card(
+        clipBehavior: Clip.antiAlias,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: _buildPreviewContent(context, document),
+            ),
+            if (document != null)
+              Positioned(
+                top: AppSpacing.sm,
+                right: AppSpacing.sm,
+                child: Material(
+                  color: colorScheme.surface.withValues(alpha: 0.92),
+                  borderRadius: BorderRadius.circular(8),
+                  child: InkWell(
+                    onTap: onOpenFullScreen,
+                    borderRadius: BorderRadius.circular(8),
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: AppSpacing.sm,
+                        vertical: AppSpacing.xs,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.fullscreen, size: 18),
+                          SizedBox(width: 4),
+                          Text('Tap to open full screen'),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPreviewContent(
+    BuildContext context,
+    ShiftTicketPdfPreviewDocument? document,
+  ) {
+    if (isLoading && document == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (errorText != null && document == null) {
+      return _PreviewError(message: errorText!, onRetry: onRetry);
+    }
+
+    if (document == null) {
+      return const Center(child: Text('No PDF preview available.'));
+    }
+
+    return GestureDetector(
+      behavior: HitTestBehavior.deferToChild,
+      onTap: onOpenFullScreen,
+      child: SfPdfViewer.file(
+        File(document.pdfPath),
+        key: ValueKey(document.pdfPath),
+        controller: controller,
+        pageLayoutMode: PdfPageLayoutMode.single,
+        scrollDirection: PdfScrollDirection.vertical,
+        canShowScrollHead: true,
+        canShowScrollStatus: true,
+        enableDoubleTapZooming: true,
+        enableTextSelection: false,
+        initialZoomLevel: 1,
+        maxZoomLevel: 3,
+        pageSpacing: 0,
+        onDocumentLoaded: (details) {
+          final page = currentPage.clamp(1, details.document.pages.count);
+          if (page > 1) controller.jumpToPage(page);
+        },
+        onPageChanged: (details) => onPageChanged(details.newPageNumber),
+      ),
+    );
+  }
+}
+
+class _PreviewError extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+
+  const _PreviewError({
+    required this.message,
+    required this.onRetry,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(message, textAlign: TextAlign.center),
+            const SizedBox(height: AppSpacing.md),
+            OutlinedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SignaturePanel extends StatelessWidget {
+  final OF297ShiftTicket ticket;
+  final bool documentReviewed;
+  final ValueChanged<OF297Signature> onContractorSignatureChanged;
+  final VoidCallback onContractorSignatureCleared;
+  final ValueChanged<OF297Signature> onSupervisorSignatureChanged;
+  final VoidCallback onSupervisorSignatureCleared;
+
+  const _SignaturePanel({
+    required this.ticket,
+    required this.documentReviewed,
+    required this.onContractorSignatureChanged,
+    required this.onContractorSignatureCleared,
+    required this.onSupervisorSignatureChanged,
+    required this.onSupervisorSignatureCleared,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0xE6111511),
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 920),
+          child: Column(
+            children: [
+              OF297SignatureBox(
+                title: 'Contractor/Operator Signature',
+                signature: ticket.contractorSignature,
+                readOnly: ticket.isFinalized || !documentReviewed,
+                onSignatureChanged: onContractorSignatureChanged,
+                onSignatureCleared: onContractorSignatureCleared,
+              ),
+              const SizedBox(height: AppSpacing.md),
+              OF297SignatureBox(
+                title: 'Incident Supervisor Signature',
+                signature: ticket.supervisorSignature,
+                readOnly: ticket.isFinalized || !documentReviewed,
+                requestSignerTitle: true,
+                onSignatureChanged: onSupervisorSignatureChanged,
+                onSignatureCleared: onSupervisorSignatureCleared,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PreviewDocumentSelector extends StatelessWidget {
+  final List<ShiftTicketPdfPreviewDocument> documents;
+  final String? selectedDocumentId;
+  final String? ctrError;
+  final bool isGeneratingCtr;
+  final ValueChanged<ShiftTicketPdfPreviewDocument> onSelected;
+  final VoidCallback onRetryCtr;
+
+  const _PreviewDocumentSelector({
+    required this.documents,
+    required this.selectedDocumentId,
+    required this.ctrError,
+    required this.isGeneratingCtr,
+    required this.onSelected,
+    required this.onRetryCtr,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0xFF111511),
+      child: SizedBox(
+        height: 56,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.sm,
+          ),
+          itemCount: documents.length + (ctrError == null ? 0 : 1),
+          separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.sm),
+          itemBuilder: (context, index) {
+            if (index >= documents.length) {
+              return Tooltip(
+                message: 'Retry CTR preview generation',
+                child: ActionChip(
+                  avatar: isGeneratingCtr
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.refresh, size: 18),
+                  label: const Text('CTR retry'),
+                  onPressed: isGeneratingCtr ? null : onRetryCtr,
+                ),
+              );
+            }
+
+            final document = documents[index];
+            final selected = document.id == selectedDocumentId ||
+                (selectedDocumentId == null && index == 0);
+            final tooltip = switch (document.type) {
+              ShiftTicketExportFormat.of297 =>
+                'Preview OF-297 document ${document.documentIndex + 1}',
+              ShiftTicketExportFormat.ctr => 'Preview CTR document',
+            };
+
+            return Tooltip(
+              message: tooltip,
+              child: ChoiceChip(
+                label: ConstrainedBox(
+                  constraints: const BoxConstraints(minWidth: 64),
+                  child: Text(
+                    document.displayName,
+                    textAlign: TextAlign.center,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                selected: selected,
+                showCheckmark: true,
+                onSelected: (_) => onSelected(document),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _ReviewActionBar extends StatelessWidget {
+  final OF297ShiftTicket ticket;
+  final bool isGeneratingPdf;
+  final VoidCallback? onEdit;
+  final VoidCallback? onSaveDraft;
+  final VoidCallback? onExportOf297;
+  final VoidCallback? onExportCtr;
+  final VoidCallback? onFinalize;
+  final VoidCallback? onDuplicate;
+
+  const _ReviewActionBar({
+    required this.ticket,
+    required this.isGeneratingPdf,
+    this.onEdit,
+    this.onSaveDraft,
+    this.onExportOf297,
+    this.onExportCtr,
+    this.onFinalize,
+    this.onDuplicate,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final narrow = MediaQuery.sizeOf(context).width < 520;
+    final finalizedActions = <Widget>[
+      Tooltip(
+        message: 'Export all OF-297 documents',
+        child: FilledButton.icon(
+          onPressed: onExportOf297,
+          icon: isGeneratingPdf
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.save_alt_outlined),
+          label: const Text('Export OF-297'),
+        ),
+      ),
+      Tooltip(
+        message: 'Export CTR document',
+        child: OutlinedButton.icon(
+          onPressed: onExportCtr,
+          icon: const Icon(Icons.save_alt_outlined),
+          label: const Text('Export CTR'),
+        ),
+      ),
+      Tooltip(
+        message: 'Duplicate finalized ticket',
+        child: OutlinedButton.icon(
+          onPressed: onDuplicate,
+          icon: const Icon(Icons.copy_outlined),
+          label: const Text('Duplicate Ticket'),
+        ),
+      ),
+    ];
+    final draftActions = <Widget>[
+      OutlinedButton.icon(
+        onPressed: onEdit,
+        icon: const Icon(Icons.edit_outlined),
+        label: const Text('Edit Ticket'),
+      ),
+      OutlinedButton.icon(
+        onPressed: onSaveDraft,
+        icon: const Icon(Icons.save_outlined),
+        label: const Text('Save Draft'),
+      ),
+      FilledButton.icon(
+        onPressed: onFinalize,
+        icon: const Icon(Icons.lock_outline),
+        label: const Text('Finalize'),
+      ),
+    ];
+    final actions = ticket.isFinalized ? finalizedActions : draftActions;
+
+    return SafeArea(
+      top: false,
+      child: Material(
+        color: const Color(0xFF111511),
+        elevation: 6,
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: narrow
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (var i = 0; i < actions.length; i++) ...[
+                      actions[i],
+                      if (i != actions.length - 1)
+                        const SizedBox(height: AppSpacing.sm),
+                    ],
+                  ],
+                )
+              : SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      for (var i = 0; i < actions.length; i++) ...[
+                        actions[i],
+                        if (i != actions.length - 1)
+                          const SizedBox(width: AppSpacing.sm),
+                      ],
+                    ],
+                  ),
+                ),
+        ),
+      ),
     );
   }
 }

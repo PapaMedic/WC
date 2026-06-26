@@ -1,3 +1,4 @@
+// Tests covering shift ticket pdf exporter test.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:wildland_companion_v2/features/tickets/models/of297_equipment_time_entry.dart';
@@ -330,5 +331,35 @@ void main() {
     expect(firstDayEquipment.start, '0800');
     expect(firstDayEquipment.stop, '2000');
     expect(firstDayEquipment.totalHours, 12);
+  });
+
+  test('OF-297 equipment rows use manually adjusted apparatus total', () {
+    final date = DateTime(2026, 6, 11);
+    final ticket = OF297ShiftTicket(
+      id: 'equipment-adjusted',
+      incidentId: 'incident-1',
+      incidentName: 'Herman Ranch',
+      globalShiftDate: date,
+      equipmentEntries: [
+        OF297EquipmentTimeEntry(
+          id: 'equipment-1',
+          date: date,
+          startTime: date.add(const Duration(hours: 8)),
+          stopTime: date.add(const Duration(hours: 20)),
+          calculatedTotalHours: 12,
+          totalHours: 11.5,
+          totalHoursManuallyOverridden: true,
+        ),
+      ],
+      createdAt: date,
+      updatedAt: date,
+    );
+
+    final equipment =
+        buildOf297ExportDocuments(ticket).single.equipmentRows.single;
+
+    expect(equipment.start, '0800');
+    expect(equipment.stop, '2000');
+    expect(equipment.totalHours, 11.5);
   });
 }

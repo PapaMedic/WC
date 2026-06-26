@@ -1,3 +1,4 @@
+// Tickets utility helpers shared by feature code.
 import 'package:intl/intl.dart';
 
 String formatShiftDateRange(
@@ -16,6 +17,31 @@ String formatShiftDateRange(
 
 bool shiftTimeRangeIsOvernight(String startTime, String stopTime) {
   return _isOvernight(startTime, stopTime);
+}
+
+Duration? calculateShiftDuration(String startTime, String stopTime) {
+  final startMinutes = parseMilitaryTimeMinutes(startTime);
+  final stopMinutes = parseMilitaryTimeMinutes(stopTime);
+  if (startMinutes == null || stopMinutes == null) return null;
+
+  var elapsedMinutes = stopMinutes - startMinutes;
+  if (elapsedMinutes < 0) {
+    elapsedMinutes += 24 * 60;
+  }
+
+  return Duration(minutes: elapsedMinutes);
+}
+
+double? calculateShiftHours(String startTime, String stopTime) {
+  final duration = calculateShiftDuration(startTime, stopTime);
+  if (duration == null) return null;
+  return duration.inMinutes / 60;
+}
+
+String formatDurationAsHoursMinutes(Duration duration) {
+  final hours = duration.inHours;
+  final minutes = duration.inMinutes.remainder(60);
+  return '$hours:${minutes.toString().padLeft(2, '0')}';
 }
 
 bool _isOvernight(String startTime, String stopTime) {

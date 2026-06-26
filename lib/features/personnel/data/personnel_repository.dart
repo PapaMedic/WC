@@ -1,3 +1,4 @@
+// Personnel persistence and repository logic.
 import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
@@ -77,9 +78,7 @@ class PersonnelRepository {
   Future<List<Personnel>> getAssignedPersonnel() async {
     final personnelList = await getAllPersonnel();
 
-    return personnelList
-        .where((personnel) => personnel.isAssigned)
-        .toList();
+    return personnelList.where((personnel) => personnel.isAssigned).toList();
   }
 
   Future<void> clearAssignedPersonnel() async {

@@ -1,3 +1,4 @@
+// Apparatus data model and serialization helpers.
 class Apparatus {
   final String id;
   final String agencyName;
@@ -28,16 +29,16 @@ class Apparatus {
       };
 
   factory Apparatus.fromJson(Map<String, dynamic> json) {
-  return Apparatus(
-    id: json['id'] ?? '',
-    agencyName: json['agencyName'] ?? '',
-    equipmentMakeModel: json['equipmentMakeModel'] ?? json['name'] ?? '',
-    equipmentType: json['equipmentType'] ?? json['type'] ?? '',
-    serialVinNumber: json['serialVinNumber'] ?? '',
-    licenseIdNumber: json['licenseIdNumber'] ?? json['unitNumber'] ?? '',
-    isSelected: json['isSelected'] ?? false,
-  );
-}
+    return Apparatus(
+      id: json['id'] ?? '',
+      agencyName: json['agencyName'] ?? '',
+      equipmentMakeModel: json['equipmentMakeModel'] ?? json['name'] ?? '',
+      equipmentType: json['equipmentType'] ?? json['type'] ?? '',
+      serialVinNumber: json['serialVinNumber'] ?? '',
+      licenseIdNumber: json['licenseIdNumber'] ?? json['unitNumber'] ?? '',
+      isSelected: json['isSelected'] ?? false,
+    );
+  }
 
   Apparatus copyWith({
     bool? isSelected,

@@ -1,3 +1,4 @@
+// Tickets PDF generation and export support.
 import 'dart:typed_data';
 
 import 'package:flutter/services.dart';

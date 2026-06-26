@@ -1,16 +1,26 @@
+// Tickets reusable presentation widget.
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:wildland_companion_v2/app/theme/app_colors.dart';
 import 'package:wildland_companion_v2/app/theme/app_spacing.dart';
+import 'package:wildland_companion_v2/features/tickets/models/shift_ticket_export_format.dart';
 import 'package:wildland_companion_v2/features/tickets/pdf/pdf_byte_utils.dart';
 
 class ShiftTicketPdfPreviewDocument {
+  final String id;
+  final String displayName;
+  final ShiftTicketExportFormat type;
+  final int documentIndex;
   final String fileName;
   final String pdfPath;
 
   const ShiftTicketPdfPreviewDocument({
+    required this.id,
+    required this.displayName,
+    required this.type,
+    required this.documentIndex,
     required this.fileName,
     required this.pdfPath,
   });
@@ -22,6 +32,7 @@ class ShiftTicketPdfPreviewScreen extends StatefulWidget {
   final List<String> warnings;
   final bool canContinueToSignatures;
   final int initialPreviewIndex;
+  final int initialPage;
 
   const ShiftTicketPdfPreviewScreen({
     super.key,
@@ -30,6 +41,7 @@ class ShiftTicketPdfPreviewScreen extends StatefulWidget {
     this.warnings = const [],
     this.canContinueToSignatures = false,
     this.initialPreviewIndex = 0,
+    this.initialPage = 1,
   });
 
   @override
@@ -70,7 +82,7 @@ class _ShiftTicketPdfPreviewScreenState
           children: [
             _PreviewHeader(
               title: widget.title,
-              fileName: _shortFileName(selectedDocument.fileName),
+              fileName: selectedDocument.displayName,
               canContinueToSignatures: widget.canContinueToSignatures,
             ),
             if (widget.warnings.isNotEmpty)
@@ -105,7 +117,7 @@ class _ShiftTicketPdfPreviewScreenState
                             label: ConstrainedBox(
                               constraints: const BoxConstraints(maxWidth: 220),
                               child: Text(
-                                _shortFileName(widget.documents[i].fileName),
+                                widget.documents[i].displayName,
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
@@ -157,6 +169,11 @@ class _ShiftTicketPdfPreviewScreenState
                     initialZoomLevel: 1,
                     maxZoomLevel: 4,
                     pageSpacing: 0,
+                    onPageChanged: (details) {
+                      // The embedded review page owns its own page state. This
+                      // full-screen viewer only needs to preserve page while it
+                      // remains open.
+                    },
                     onDocumentLoadFailed: (details) {
                       debugPrint('PDF LOAD FAILED: ${details.error}');
                       debugPrint(
@@ -164,6 +181,13 @@ class _ShiftTicketPdfPreviewScreenState
                       );
                     },
                     onDocumentLoaded: (details) {
+                      final page = widget.initialPage.clamp(
+                        1,
+                        details.document.pages.count,
+                      );
+                      if (page > 1) {
+                        _controller.jumpToPage(page);
+                      }
                       debugPrint(
                         'PDF LOADED: ${selectedDocument.pdfPath} '
                         'pages=${details.document.pages.count}',
@@ -206,11 +230,6 @@ class _ShiftTicketPdfPreviewScreenState
     }
 
     return file;
-  }
-
-  String _shortFileName(String fileName) {
-    if (fileName.length <= 38) return fileName;
-    return '${fileName.substring(0, 35)}...';
   }
 }
 

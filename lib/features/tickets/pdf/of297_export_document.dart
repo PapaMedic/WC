@@ -1,3 +1,4 @@
+// Tickets PDF generation and export support.
 import 'package:intl/intl.dart';
 import 'package:wildland_companion_v2/features/tickets/models/of297_equipment_time_entry.dart';
 import 'package:wildland_companion_v2/features/tickets/models/of297_personnel_time_entry.dart';
@@ -266,12 +267,30 @@ List<Of297ExportEquipmentRow> _equipmentRowsForDate(
         date: _displayDate(date),
         start: segment.start,
         stop: segment.stop,
-        totalHours: segment.hours,
+        totalHours: _equipmentTotalHoursForDate(entry, date, segment.hours),
       ),
     );
   }
 
   return rows;
+}
+
+double _equipmentTotalHoursForDate(
+  OF297EquipmentTimeEntry entry,
+  DateTime date,
+  double segmentHours,
+) {
+  if (entry.totalHours <= 0) return segmentHours;
+  final start = entry.startTime;
+  if (start == null) return entry.totalHours;
+
+  // Use the stored editable total on the first apparatus row segment. This
+  // preserves manual deductions without re-deriving total hours from start/stop.
+  if (_dateOnly(start).isAtSameMomentAs(_dateOnly(date))) {
+    return entry.totalHours;
+  }
+
+  return segmentHours;
 }
 
 List<_GlobalInterval> _equipmentIntervals(OF297EquipmentTimeEntry entry) {

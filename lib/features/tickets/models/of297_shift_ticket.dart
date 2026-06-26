@@ -1,3 +1,4 @@
+// Tickets data model and serialization helpers.
 import 'package:wildland_companion_v2/features/tickets/models/of297_equipment_time_entry.dart';
 import 'package:wildland_companion_v2/features/tickets/models/of297_personnel_time_entry.dart';
 import 'package:wildland_companion_v2/features/tickets/models/of297_signature.dart';
@@ -35,6 +36,7 @@ class OF297ShiftTicket {
   final String globalBlock1Stop;
   final String globalBlock2Start;
   final String globalBlock2Stop;
+  final bool apparatusSameAsCrewTimes;
   final DateTime? shiftStart;
   final DateTime? shiftEnd;
   final List<OF297EquipmentTimeEntry> equipmentEntries;
@@ -74,6 +76,7 @@ class OF297ShiftTicket {
     this.globalBlock1Stop = '',
     this.globalBlock2Start = '',
     this.globalBlock2Stop = '',
+    this.apparatusSameAsCrewTimes = false,
     this.shiftStart,
     this.shiftEnd,
     this.equipmentEntries = const [],
@@ -116,6 +119,7 @@ class OF297ShiftTicket {
         'globalBlock1Stop': globalBlock1Stop,
         'globalBlock2Start': globalBlock2Start,
         'globalBlock2Stop': globalBlock2Stop,
+        'apparatusSameAsCrewTimes': apparatusSameAsCrewTimes,
         'shiftStart': shiftStart?.toIso8601String(),
         'shiftEnd': shiftEnd?.toIso8601String(),
         'equipmentEntries':
@@ -159,6 +163,7 @@ class OF297ShiftTicket {
       globalBlock1Stop: json['globalBlock1Stop'] ?? '',
       globalBlock2Start: json['globalBlock2Start'] ?? '',
       globalBlock2Stop: json['globalBlock2Stop'] ?? '',
+      apparatusSameAsCrewTimes: json['apparatusSameAsCrewTimes'] ?? false,
       shiftStart: DateTime.tryParse(json['shiftStart'] ?? ''),
       shiftEnd: DateTime.tryParse(json['shiftEnd'] ?? ''),
       equipmentEntries: ((json['equipmentEntries'] ?? []) as List<dynamic>)
@@ -220,6 +225,7 @@ class OF297ShiftTicket {
     String? globalBlock1Stop,
     String? globalBlock2Start,
     String? globalBlock2Stop,
+    bool? apparatusSameAsCrewTimes,
     DateTime? shiftStart,
     DateTime? shiftEnd,
     List<OF297EquipmentTimeEntry>? equipmentEntries,
@@ -263,6 +269,8 @@ class OF297ShiftTicket {
       globalBlock1Stop: globalBlock1Stop ?? this.globalBlock1Stop,
       globalBlock2Start: globalBlock2Start ?? this.globalBlock2Start,
       globalBlock2Stop: globalBlock2Stop ?? this.globalBlock2Stop,
+      apparatusSameAsCrewTimes:
+          apparatusSameAsCrewTimes ?? this.apparatusSameAsCrewTimes,
       shiftStart: shiftStart ?? this.shiftStart,
       shiftEnd: shiftEnd ?? this.shiftEnd,
       equipmentEntries: equipmentEntries ?? this.equipmentEntries,
