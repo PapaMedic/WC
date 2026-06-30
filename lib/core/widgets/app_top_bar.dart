@@ -1,7 +1,9 @@
 // Shared UI widget used across app screens.
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:wildland_companion_v2/app/theme/app_colors.dart';
 import 'package:wildland_companion_v2/core/state/network_state.dart';
+import 'package:wildland_companion_v2/features/auth/data/auth_repository.dart';
 
 class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
@@ -52,6 +54,11 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
           ],
         ),
         actions: [
+          IconButton(
+            tooltip: 'Sign out',
+            onPressed: () => context.read<AuthRepository>().signOut(),
+            icon: const Icon(Icons.logout),
+          ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: ValueListenableBuilder<bool>(

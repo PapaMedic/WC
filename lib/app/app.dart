@@ -1,8 +1,10 @@
 // Application-level routing and shell wiring.
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:wildland_companion_v2/app/theme/app_theme.dart';
 import 'package:wildland_companion_v2/app/app_router.dart';
+import 'package:wildland_companion_v2/app/theme/app_theme.dart';
+import 'package:wildland_companion_v2/features/auth/data/auth_repository.dart';
+import 'package:wildland_companion_v2/features/auth/presentation/auth_gate.dart';
 import 'package:wildland_companion_v2/features/tickets/state/tickets_state.dart';
 
 class WildlandCompanionApp extends StatelessWidget {
@@ -10,14 +12,23 @@ class WildlandCompanionApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      // OF-297 tickets are app-level state because the ticket list, form, and
-      // review screens all need the same draft/finalized records.
-      create: (_) => TicketsState(),
+    return MultiProvider(
+      providers: [
+        Provider<AuthRepository>(
+          create: (_) => AuthRepository(),
+        ),
+        ChangeNotifierProvider(
+          // OF-297 tickets are app-level state because the ticket list, form,
+          // and review screens all need the same draft/finalized records.
+          create: (_) => TicketsState(),
+        ),
+      ],
       child: MaterialApp(
         title: 'Wildland Companion',
         theme: AppTheme.darkTheme,
-        home: const AppRouter(),
+        home: const AuthGate(
+          authenticatedChild: AppRouter(),
+        ),
         debugShowCheckedModeBanner: false,
       ),
     );

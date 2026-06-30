@@ -24,10 +24,6 @@ class DefaultFirebaseOptions {
         return android;
       case TargetPlatform.iOS:
         return ios;
-      case TargetPlatform.macOS:
-        return macos;
-      case TargetPlatform.windows:
-        return windows;
       case TargetPlatform.linux:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for linux - '
@@ -64,23 +60,5 @@ class DefaultFirebaseOptions {
     projectId: 'wildland-companion-dev',
     storageBucket: 'wildland-companion-dev.firebasestorage.app',
     iosBundleId: 'com.invictinox.wildlandcompanion',
-  );
-  static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyBljD1yQzI6-3rFYzTGTeUYiARtRC24Tlw',
-    appId: '1:747261652632:ios:a802b289f12c926912aaed',
-    messagingSenderId: '747261652632',
-    projectId: 'wildland-companion-dev',
-    storageBucket: 'wildland-companion-dev.firebasestorage.app',
-    iosBundleId: 'com.example.wildlandCompanionV2',
-  );
-
-  static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyDZu1VkC8u5RVOJoL0ND5oQ31N_P4Fb-u8',
-    appId: '1:747261652632:web:62bb2bcf6b713af412aaed',
-    messagingSenderId: '747261652632',
-    projectId: 'wildland-companion-dev',
-    authDomain: 'wildland-companion-dev.firebaseapp.com',
-    storageBucket: 'wildland-companion-dev.firebasestorage.app',
-    measurementId: 'G-9SLEL65QNX',
   );
 }

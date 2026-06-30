@@ -1,1 +1,31 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"wildland-companion-dev","appId":"1:747261652632:android:9410e3f6fe1477b212aaed","fileOutput":"android/app/google-services.json"}},"ios":{"default":{"projectId":"wildland-companion-dev","appId":"1:747261652632:ios:bae35fe4c2afafdd12aaed","uploadDebugSymbols":false,"fileOutput":"ios/Runner/GoogleService-Info.plist"}},"macos":{"default":{"projectId":"wildland-companion-dev","appId":"1:747261652632:ios:a802b289f12c926912aaed","uploadDebugSymbols":false,"fileOutput":"macos/Runner/GoogleService-Info.plist"}},"dart":{"lib/firebase_options.dart":{"projectId":"wildland-companion-dev","configurations":{"android":"1:747261652632:android:9410e3f6fe1477b212aaed","ios":"1:747261652632:ios:bae35fe4c2afafdd12aaed","web":"1:747261652632:web:72347df014ad82af12aaed"}}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "wildland-companion-dev",
+          "appId": "1:747261652632:android:9410e3f6fe1477b212aaed",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "ios": {
+        "default": {
+          "projectId": "wildland-companion-dev",
+          "appId": "1:747261652632:ios:bae35fe4c2afafdd12aaed",
+          "uploadDebugSymbols": false,
+          "fileOutput": "ios/Runner/GoogleService-Info.plist"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "wildland-companion-dev",
+          "configurations": {
+            "android": "1:747261652632:android:9410e3f6fe1477b212aaed",
+            "ios": "1:747261652632:ios:bae35fe4c2afafdd12aaed",
+            "web": "1:747261652632:web:72347df014ad82af12aaed"
+          }
+        }
+      }
+    }
+  }
+}
