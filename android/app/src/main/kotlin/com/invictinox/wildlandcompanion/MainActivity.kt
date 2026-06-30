@@ -1,4 +1,4 @@
-package com.example.wildland_companion_v2
+package com.invictinox.wildlandcompanion
 
 import io.flutter.embedding.android.FlutterActivity
 
