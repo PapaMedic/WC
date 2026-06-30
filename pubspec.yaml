@@ -56,10 +56,10 @@ dependencies:
   # Share/export files
   file_selector: ^1.0.3
   share_plus: ^11.1.0
+  firebase_core: ^4.11.0
+  firebase_auth: ^6.5.4
 
   # Optional future backend support
-  supabase_flutter: ^2.9.1
-
 dev_dependencies:
   flutter_test:
     sdk: flutter

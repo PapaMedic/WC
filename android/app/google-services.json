@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "747261652632",
+    "project_id": "wildland-companion-dev",
+    "storage_bucket": "wildland-companion-dev.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:747261652632:android:9410e3f6fe1477b212aaed",
+        "android_client_info": {
+          "package_name": "com.invictinox.wildlandcompanion"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB3bVjro0Toto76aaiJNTN72Yz1TUIZbEU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
