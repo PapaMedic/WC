@@ -5,6 +5,7 @@ import 'package:wildland_companion_v2/app/theme/app_colors.dart';
 import 'package:wildland_companion_v2/app/theme/app_spacing.dart';
 import 'package:wildland_companion_v2/core/widgets/wildland_background.dart';
 import 'package:wildland_companion_v2/features/auth/data/auth_repository.dart';
+import 'package:wildland_companion_v2/features/auth/presentation/auth_error_messages.dart';
 
 class AuthPage extends StatefulWidget {
   const AuthPage({super.key});
@@ -15,6 +16,9 @@ class AuthPage extends StatefulWidget {
 
 class _AuthPageState extends State<AuthPage> {
   final _formKey = GlobalKey<FormState>();
+  final _firstNameController = TextEditingController();
+  final _lastNameController = TextEditingController();
+  final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
@@ -24,10 +28,30 @@ class _AuthPageState extends State<AuthPage> {
   String? _message;
 
   @override
+  void initState() {
+    super.initState();
+    _usernameController.addListener(_normalizeUsername);
+  }
+
+  @override
   void dispose() {
+    _usernameController.removeListener(_normalizeUsername);
+    _firstNameController.dispose();
+    _lastNameController.dispose();
+    _usernameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  void _normalizeUsername() {
+    final normalized = _usernameController.text.trim().toLowerCase();
+    if (_usernameController.text == normalized) return;
+
+    _usernameController.value = TextEditingValue(
+      text: normalized,
+      selection: TextSelection.collapsed(offset: normalized.length),
+    );
   }
 
   Future<void> _submit() async {
@@ -45,6 +69,11 @@ class _AuthPageState extends State<AuthPage> {
         await authRepository.createUserWithEmailAndPassword(
           email: _emailController.text,
           password: _passwordController.text,
+          profile: SignUpProfileInput(
+            firstName: _firstNameController.text.trim(),
+            lastName: _lastNameController.text.trim(),
+            username: _usernameController.text.trim(),
+          ),
         );
       } else {
         await authRepository.signInWithEmailAndPassword(
@@ -54,12 +83,20 @@ class _AuthPageState extends State<AuthPage> {
       }
     } on FirebaseAuthException catch (error) {
       if (mounted) {
-        setState(() => _message = _friendlyAuthMessage(error));
+        setState(() => _message = authUserMessage(error));
+      }
+    } on FirebaseException catch (error) {
+      if (mounted) {
+        setState(() => _message = profileUserMessage(error));
+      }
+    } on UsernameAlreadyTakenException catch (error) {
+      if (mounted) {
+        setState(() => _message = usernameUserMessage(error));
       }
     } catch (_) {
       if (mounted) {
         setState(
-          () => _message = 'Authentication failed. Check your connection.',
+          () => _message = 'Unable to finish signup. Please try again.',
         );
       }
     } finally {
@@ -88,7 +125,7 @@ class _AuthPageState extends State<AuthPage> {
       }
     } on FirebaseAuthException catch (error) {
       if (mounted) {
-        setState(() => _message = _friendlyAuthMessage(error));
+        setState(() => _message = authUserMessage(error));
       }
     } finally {
       if (mounted) {
@@ -147,6 +184,68 @@ class _AuthPageState extends State<AuthPage> {
                                 ?.copyWith(fontSize: 22),
                           ),
                           const SizedBox(height: AppSpacing.md),
+                          if (_isCreatingAccount) ...[
+                            TextFormField(
+                              key: const ValueKey('auth-first-name-field'),
+                              controller: _firstNameController,
+                              textInputAction: TextInputAction.next,
+                              autofillHints: const [AutofillHints.givenName],
+                              decoration: const InputDecoration(
+                                labelText: 'First name',
+                                prefixIcon: Icon(Icons.badge_outlined),
+                              ),
+                              validator: (value) {
+                                final firstName = value?.trim() ?? '';
+                                if (firstName.isEmpty) {
+                                  return 'First name is required.';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: AppSpacing.md),
+                            TextFormField(
+                              key: const ValueKey('auth-last-name-field'),
+                              controller: _lastNameController,
+                              textInputAction: TextInputAction.next,
+                              autofillHints: const [AutofillHints.familyName],
+                              decoration: const InputDecoration(
+                                labelText: 'Last name',
+                                prefixIcon: Icon(Icons.badge_outlined),
+                              ),
+                              validator: (value) {
+                                final lastName = value?.trim() ?? '';
+                                if (lastName.isEmpty) {
+                                  return 'Last name is required.';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: AppSpacing.md),
+                            TextFormField(
+                              key: const ValueKey('auth-username-field'),
+                              controller: _usernameController,
+                              textInputAction: TextInputAction.next,
+                              autofillHints: const [AutofillHints.username],
+                              decoration: const InputDecoration(
+                                labelText: 'Username',
+                                prefixIcon: Icon(Icons.alternate_email),
+                              ),
+                              validator: (value) {
+                                final username =
+                                    value?.trim().toLowerCase() ?? '';
+                                final validUsername =
+                                    RegExp(r'^[a-z0-9_]{3,24}$');
+                                if (username.isEmpty) {
+                                  return 'Username is required.';
+                                }
+                                if (!validUsername.hasMatch(username)) {
+                                  return 'Use 3-24 letters, numbers, or underscores.';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: AppSpacing.md),
+                          ],
                           TextFormField(
                             key: const ValueKey('auth-email-field'),
                             controller: _emailController,
@@ -258,20 +357,6 @@ class _AuthPageState extends State<AuthPage> {
         ),
       ),
     );
-  }
-
-  String _friendlyAuthMessage(FirebaseAuthException error) {
-    return switch (error.code) {
-      'email-already-in-use' => 'An account already exists for this email.',
-      'invalid-email' => 'Enter a valid email address.',
-      'invalid-credential' ||
-      'user-not-found' ||
-      'wrong-password' =>
-        'Email or password is incorrect.',
-      'weak-password' => 'Use a stronger password.',
-      'network-request-failed' => 'Network unavailable. Try again online.',
-      _ => error.message ?? 'Authentication failed. Try again.',
-    };
   }
 }
 
